@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>职业技能等级认定考试报名服务</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+</head>
+<body>
+<header class="topbar" id="topbar">
+    <a class="brand" href="/">
+        <img src="/assets/logo.svg" alt="logo" class="brand-logo">
+        <strong>职业技能等级认定考试报名</strong>
+    </a>
+    <nav>
+        <a href="#plans" class="nav-link">考试计划</a>
+        <a href="#notice" class="nav-link">通知公告</a>
+        <a href="#verify" class="nav-link">证书查验</a>
+        <a href="#contact" class="nav-link">联系我们</a>
+        <a href="#faq" class="nav-link">帮助中心</a>
+        <a class="btn btn-primary btn-login" href="#" id="nav-auth" onclick="openLoginSelector();return false">登录 / 注册</a>
+    </nav>
+</header>
+
+<div class="scroll-progress" id="scroll-progress"></div>
+<button class="back-to-top" id="back-to-top" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<main class="layout">
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="hero-slide active">
+                <div class="blob blob-1"></div>
+                <div class="blob blob-2"></div>
+                <div class="blob blob-3"></div>
+            </div>
+            <div class="hero-slide">
+                <div class="blob blob-a1"></div>
+                <div class="blob blob-a2"></div>
+                <div class="blob blob-a3"></div>
+            </div>
+            <div class="hero-slide">
+                <div class="blob blob-b1"></div>
+                <div class="blob blob-b2"></div>
+                <div class="blob blob-b3"></div>
+            </div>
+        </div>
+        <div class="hero-content reveal">
+            <div class="hero-text-layer active" data-idx="0">
+                <div class="eyebrow">职业技能等级认定 · 官方服务平台</div>
+                <h1>考试报名与<br><span class="gradient-text">考场编排系统</span></h1>
+                <p>一站式完成计划查询、在线报名、资格审核、缴费确认、准考证打印与成绩查询。</p>
+            </div>
+            <div class="hero-text-layer" data-idx="1">
+                <div class="eyebrow">高效便捷 · 全程线上</div>
+                <h1>在线报名<br><span class="gradient-text">审核缴费一站通</span></h1>
+                <p>资格审核、在线缴费、准考证打印全流程线上办理，省时省力。</p>
+            </div>
+            <div class="hero-text-layer" data-idx="2">
+                <div class="eyebrow">智能编排 · 公平公正</div>
+                <h1>智能考场编排<br><span class="gradient-text">成绩证书一站查</span></h1>
+                <p>随机智能编排考场座位，成绩发布后自动生成电子证书，可在线查验真伪。</p>
+            </div>
+            <div class="hero-actions">
+                <a class="btn btn-primary btn-lg" href="#plans">查询考试计划</a>
+                <a class="btn btn-lg" href="#" onclick="openLoginSelector();return false">登录 / 注册</a>
+            </div>
+            <div class="hero-stats" id="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-num count-num" id="hero-stat-plans">0</span>
+                    <span class="hero-stat-label">在招考试计划</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num count-num" id="hero-stat-trades">0</span>
+                    <span class="hero-stat-label">可报工种</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num count-num" id="hero-stat-regs">0</span>
+                    <span class="hero-stat-label">累计报名人次</span>
+                </div>
+            </div>
+            <div class="hero-dots" id="hero-dots">
+                <span class="dot active" data-idx="0"></span>
+                <span class="dot" data-idx="1"></span>
+                <span class="dot" data-idx="2"></span>
+            </div>
+        </div>
+    </section>
+
+    <section id="stats" class="panel reveal section-gap">
+        <div class="stat-grid">
+            <div class="stat-item">
+                <div class="stat-num" data-count="24" id="plan-count">0</div>
+                <div class="stat-label">在考计划</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num" data-count="20">0</div>
+                <div class="stat-label">认定工种</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num" data-count="62">0</div>
+                <div class="stat-label">技能等级</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-num" data-count="8">0</div>
+                <div class="stat-label">标准考场</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 热门工种 -->
+    <section class="panel reveal section-gap">
+        <div class="eyebrow">POPULAR TRADES</div>
+        <h2>热门认定工种</h2>
+        <div class="meta">涵盖生产制造、信息技术、生活服务、健康服务等多个领域</div>
+        <div id="trade-list" class="cards" style="margin-top:16px"></div>
+    </section>
+
+    <!-- 服务流程时间线 -->
+    <section class="panel reveal section-gap">
+        <div class="eyebrow">SERVICE PROCESS</div>
+        <h2>全流程服务</h2>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-dot">1</div>
+                <div class="timeline-content">
+                    <h4>注册账号</h4>
+                    <p>使用真实姓名、身份证号、手机号和邮箱完成注册，获取账号恢复令牌。</p>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot">2</div>
+                <div class="timeline-content">
+                    <h4>选择计划并报名</h4>
+                    <p>浏览考试计划，选择符合条件的工种和等级，填写报名信息并提交。</p>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot">3</div>
+                <div class="timeline-content">
+                    <h4>资格审核</h4>
+                    <p>管理员审核报名资格，审核通过后进入缴费环节，退回可重新提交。</p>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot">4</div>
+                <div class="timeline-content">
+                    <h4>缴费确认</h4>
+                    <p>审核通过后在线缴纳考试费用，确认后等待考场编排。</p>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot">5</div>
+                <div class="timeline-content">
+                    <h4>考场编排与准考证</h4>
+                    <p>考务人员完成随机编排，生成准考证，考生可在线打印。</p>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot">6</div>
+                <div class="timeline-content">
+                    <h4>成绩查询与证书</h4>
+                    <p>考试结束后查询成绩，合格者获取电子证书和纸质证书。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="plans" class="panel reveal section-gap">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">EXAM PLAN DIRECTORY</div>
+                <h2>考试计划</h2>
+                <div class="meta">公开展示计划详情，点击"我要报名"后登录即可继续。</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input id="search" placeholder="搜索计划或工种" style="width:200px">
+                <select id="level">
+                    <option value="">全部等级</option>
+                    <option>初级</option><option>中级</option><option>高级</option><option>技师</option>
+                </select>
+                <select id="sort">
+                    <option value="default">默认排序</option>
+                    <option value="fee-asc">费用从低到高</option>
+                    <option value="fee-desc">费用从高到低</option>
+                    <option value="time-asc">报名截止最早</option>
+                    <option value="time-desc">报名截止最晚</option>
+                    <option value="name-asc">名称 A-Z</option>
+                    <option value="hot-desc">报名人数最多</option>
+                </select>
+            </div>
+        </div>
+        <div id="trade-chips" class="chips" style="margin-top:14px"></div>
+        <div id="plan-list" class="cards"></div>
+    </section>
+
+    <section class="grid section-gap">
+        <section id="notice" class="panel span-8 reveal">
+            <div class="eyebrow">NOTICE & POLICY</div>
+            <h2>通知公告与政策</h2>
+            <div id="notice-list"></div>
+        </section>
+        <section class="panel span-4 reveal" style="transition-delay:.1s">
+            <div class="eyebrow">APPLICATION GUIDE</div>
+            <h2>报名指南</h2>
+            <div class="meta">
+                <b>01 账号注册</b><br>准备真实姓名、身份证号、手机号和邮箱。<br><br>
+                <b>02 资格填报</b><br>按计划要求填写学历、工作经历和紧急联系人。<br><br>
+                <b>03 材料审核</b><br>管理员审核报名资格，通过后方可缴费。<br><br>
+                <b>04 缴费取证</b><br>审核通过后缴费，编排完成后打印准考证。
+            </div>
+        </section>
+    </section>
+
+    <!-- 报名旅程 stepper -->
+    <section class="panel reveal section-gap" id="journey-section">
+        <div class="eyebrow">REGISTRATION JOURNEY</div>
+        <h2>报名旅程</h2>
+        <div class="meta">七步完成职业技能等级认定全流程，当前高亮第一步，随办理进度依次点亮。</div>
+        <div class="journey" style="margin-top:24px">
+            <div class="journey-step current">
+                <span class="journey-title">选择计划</span>
+                <span class="journey-desc">浏览计划，挑选工种与等级</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">提交报名</span>
+                <span class="journey-desc">在线填写报名信息</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">资格审核</span>
+                <span class="journey-desc">管理员审核报名材料</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">缴费确认</span>
+                <span class="journey-desc">线上缴纳考试费用</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">考场编排</span>
+                <span class="journey-desc">智能随机编排考场座位</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">参加考试</span>
+                <span class="journey-desc">打印准考证，按时赴考</span>
+            </div>
+            <div class="journey-step">
+                <span class="journey-title">领取证书</span>
+                <span class="journey-desc">在线查验、下载证书</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="faq" class="panel reveal section-gap">
+        <div class="eyebrow">HELP CENTER</div>
+        <h2>常见问题</h2>
+        <details class="faq-item">
+            <summary>报名需要准备哪些材料？</summary>
+            <p class="meta">通常需要身份证明、近期照片、学历或工作经历证明，具体以考试计划中的报名条件为准。</p>
+        </details>
+        <details class="faq-item">
+            <summary>报名提交后还能修改吗？</summary>
+            <p class="meta">待审核状态下不能直接修改。如材料有误，请联系管理员退回后重新提交。</p>
+        </details>
+        <details class="faq-item">
+            <summary>审核通过后如何缴费？</summary>
+            <p class="meta">登录个人中心，在"我的报名"中查看待办并完成缴费确认。</p>
+        </details>
+        <details class="faq-item">
+            <summary>准考证什么时候可以打印？</summary>
+            <p class="meta">考务人员完成考场编排并生成准考证后，个人中心会显示打印入口。</p>
+        </details>
+        <details class="faq-item">
+            <summary>忘记密码怎么办？</summary>
+            <p class="meta">可通过注册邮箱接收验证码重置密码，或使用注册时获得的账号恢复令牌直接重置。</p>
+        </details>
+        <details class="faq-item">
+            <summary>报名费用如何缴纳？</summary>
+            <p class="meta">审核通过后，在"我的报名"中点击缴费按钮，支持线上支付。缴费成功后不可退款。</p>
+        </details>
+        <details class="faq-item">
+            <summary>考试成绩多久可以查询？</summary>
+            <p class="meta">一般在考试结束后15个工作日内发布成绩，考生可在个人中心查询。</p>
+        </details>
+        <details class="faq-item">
+            <summary>证书在哪里领取？</summary>
+            <p class="meta">考试合格后，电子证书可在个人中心下载，纸质证书将在考后30个工作日内邮寄到报名时填写的地址。</p>
+        </details>
+    </section>
+
+    <section class="grid section-gap">
+        <div class="panel span-6 reveal">
+            <div class="eyebrow">PLATFORM DATA</div>
+            <h2>平台数据</h2>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-num" data-count="24">0</div>
+                    <div class="stat-label">在考计划</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" data-count="20">0</div>
+                    <div class="stat-label">认定工种</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" data-count="62">0</div>
+                    <div class="stat-label">技能等级</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" data-count="8">0</div>
+                    <div class="stat-label">标准考场</div>
+                </div>
+            </div>
+        </div>
+        <div class="panel span-6 reveal" style="transition-delay:.1s" id="contact">
+            <div class="eyebrow">CONTACT US</div>
+            <h2>联系我们</h2>
+            <div class="contact-list">
+                <div class="contact-item"><span class="contact-icon">📞</span><div><b>咨询电话</b><br><span class="meta">400-000-2026</span></div></div>
+                <div class="contact-item"><span class="contact-icon">📧</span><div><b>电子邮箱</b><br><span class="meta">service@skill-exam.gov.cn</span></div></div>
+                <div class="contact-item"><span class="contact-icon">📍</span><div><b>办公地址</b><br><span class="meta">市职业技能人才评价服务中心</span></div></div>
+                <div class="contact-item"><span class="contact-icon">🕐</span><div><b>服务时间</b><br><span class="meta">工作日 09:00-17:00</span></div></div>
+            </div>
+            <!-- 公众号二维码 -->
+            <div style="margin-top:16px;padding:14px;background:var(--surface-soft);border-radius:12px;display:flex;align-items:center;gap:14px">
+                <div style="width:84px;height:84px;background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);flex-shrink:0;text-align:center;line-height:1.3">
+                    公众号<br>二维码
+                </div>
+                <div>
+                    <b style="color:#07c160">📱 关注官方公众号</b><br>
+                    <span class="meta">微信扫码关注，获取最新考试资讯、政策解读与报名提醒</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 证书查验 -->
+    <section id="verify" class="panel reveal section-gap">
+        <div class="eyebrow">CERTIFICATE VERIFICATION</div>
+        <h2>证书公开查验</h2>
+        <div class="meta">输入职业技能等级证书编号（形如 ZSZN-2026-000001），即可核验证书真伪与状态。</div>
+        <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap">
+            <input id="cert-no" placeholder="请输入证书编号" onkeydown="if(event.key==='Enter')verifyCert()" style="flex:1;min-width:240px">
+            <button class="btn btn-primary" onclick="verifyCert()">立即查验</button>
+        </div>
+        <div id="cert-result"></div>
+    </section>
+</main>
+
+<footer class="footer">
+    <strong>职业技能等级认定考试报名与考场编排系统</strong><br>
+    主办单位：职业技能人才评价服务中心　|　技术支持：平台运营团队<br>
+    咨询电话：400-000-2026　|　服务时间：工作日 09:00-17:00
+</footer>
+
+<div id="modal" hidden></div>
+
+<script src="/assets/js/common/api.js?v=12"></script>
+<script src="/assets/js/pages/index.js?v=3"></script>
+</body>
+</html>

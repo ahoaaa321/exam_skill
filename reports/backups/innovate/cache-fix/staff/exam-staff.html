@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>考务端 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+    <script src="/assets/js/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>考务管理端</strong></a>
+    <nav>
+        <a href="/">考生端</a>
+        <a href="/auth/admin-login.html">管理端</a>
+        <a href="#" onclick="logout();return false">退出</a>
+    </nav>
+</header>
+
+<div class="scroll-progress" id="scroll-progress"></div>
+<button class="back-to-top" id="back-to-top" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<main class="layout">
+    <section class="hero">
+        <div>
+            <div class="eyebrow">EXAM STAFF CONSOLE</div>
+            <h1>考场编排与考务管理</h1>
+            <p>配置考场、执行随机混排、手动调座、录入成绩、生成准考证。</p>
+        </div>
+        <div class="hero-code">ROLE: EXAM_STAFF<br>ACCESS: ROOM + ARRANGE + SCORE</div>
+    </section>
+
+    <!-- 统计概览 -->
+    <section class="grid">
+        <div class="panel span-3"><div class="label">可用考场</div><div class="metric count-num" id="room-count">0</div></div>
+        <div class="panel span-3"><div class="label">总座位数</div><div class="metric count-num" id="seat-count">0</div></div>
+        <div class="panel span-3"><div class="label">待编排考生</div><div class="metric count-num" id="pool-count" style="color:var(--warning)">0</div></div>
+        <div class="panel span-3"><div class="label">已编排</div><div class="metric count-num" id="arranged-count" style="color:var(--success)">0</div></div>
+    </section>
+
+    <!-- 数据可视化 -->
+    <section class="grid" style="margin-top:18px">
+        <div class="panel span-6">
+            <div class="eyebrow">SEAT UTILIZATION</div>
+            <h3 style="margin:4px 0 12px">考场座位使用率</h3>
+            <canvas id="chart-seat" height="180"></canvas>
+        </div>
+        <div class="panel span-6">
+            <div class="eyebrow">SIGN-IN STATUS</div>
+            <h3 style="margin:4px 0 12px">签到状态分布</h3>
+            <canvas id="chart-signin" height="180"></canvas>
+        </div>
+    </section>
+    <section class="grid" style="margin-top:14px">
+        <div class="panel span-12">
+            <div class="eyebrow">SCORE DISTRIBUTION</div>
+            <h3 style="margin:4px 0 12px">成绩分布（理论 / 实操）</h3>
+            <canvas id="chart-score" height="100"></canvas>
+        </div>
+    </section>
+
+    <!-- 考场配置 -->
+    <section class="panel" id="sec-rooms" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">ROOM MANAGEMENT</div>
+                <h2>考场配置</h2>
+            </div>
+            <button class="btn btn-primary" onclick="openRoomModal()">+ 新增考场</button>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>考场编号</th><th>楼栋</th><th>教室</th><th>座位数</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="rooms"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 考场编排 -->
+    <section class="panel" id="sec-arrange" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">ARRANGEMENT ENGINE</div>
+                <h2>考场编排</h2>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn" onclick="exportArrangements()">导出编排表</button>
+                <button class="btn" onclick="resetArrange()" style="color:var(--danger,#e11)">重置编排</button>
+                <button class="btn btn-primary" onclick="arrangeNow()">开始编排</button>
+            </div>
+        </div>
+        <div class="notice">
+            编排策略：按考试计划分组，同单位打散后执行随机洗牌，自动跳过已编排考生与已占用座位，增量填入空闲座位。
+            重复点击"开始编排"只会编排新增的已缴费考生，不会影响已有结果；如需全部重排，请先"重置编排"。
+        </div>
+    </section>
+
+    <!-- 编排结果 -->
+    <section class="panel" id="sec-result" style="margin-top:18px">
+        <div class="eyebrow">ARRANGEMENT RESULT</div>
+        <h2>编排结果（可手动调整座位）</h2>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>准考证号</th><th>考生</th><th>考试计划</th><th>考场</th><th>座位号</th><th>工种/等级</th><th>操作</th></tr>
+                </thead>
+                <tbody id="arrangements"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 座位总览 -->
+    <section class="panel" id="sec-seats" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">SEAT OVERVIEW</div>
+                <h2>座位总览</h2>
+            </div>
+        </div>
+        <div class="label" style="margin:10px 0 6px">考试计划</div>
+        <div class="chips" id="seat-plan-chips"></div>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+            <label class="label">考场
+                <select id="seat-room-select" onchange="seatRoomId=this.value;renderSeatGrid()"></select>
+            </label>
+            <span class="meta" id="seat-summary" style="padding-bottom:8px"></span>
+        </div>
+        <div id="seat-grid-wrap" style="max-height:40vh;overflow:auto;margin-top:10px;padding:4px 2px">
+            <div class="seat-grid" id="seat-grid"></div>
+        </div>
+        <div class="seat-legend">
+            <span class="seat-legend-item"><span class="seat seat-free"></span>空位</span>
+            <span class="seat-legend-item"><span class="seat seat-used"></span>已编排（点击可调座）</span>
+            <span class="seat-legend-item"><span class="seat seat-selected"></span>选中</span>
+        </div>
+    </section>
+
+    <!-- 成绩管理 -->
+    <section class="panel" id="sec-scores" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">SCORE ENTRY</div>
+                <h2>成绩录入</h2>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>考生</th><th>考试计划</th><th>工种/等级</th><th>理论成绩</th><th>实操成绩</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="scores"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 考试签到管理 -->
+    <section class="panel" id="sec-signins" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">SIGN-IN MANAGEMENT</div>
+                <h2>考试签到管理</h2>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>准考证号</th><th>考生</th><th>考试计划</th><th>考场/座位</th><th>签到时间</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="signins"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 编排配置 -->
+    <section class="panel" id="sec-config" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">ARRANGEMENT CONFIG</div>
+                <h2>编排策略配置</h2>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+            <label class="label">默认考场座位数
+                <select id="cfg-plan" onchange="loadConfig()">
+                    <option value="">选择考试计划</option>
+                </select>
+            </label>
+            <label class="label">默认座位数
+                <input id="cfg-seats" type="number" value="30">
+            </label>
+            <label class="label">座位间隔
+                <input id="cfg-gap" type="number" value="1" min="0">
+            </label>
+            <label class="label">同单位打散
+                <select id="cfg-shuffle">
+                    <option value="1">是</option>
+                    <option value="0">否</option>
+                </select>
+            </label>
+        </div>
+        <div style="margin-top:12px">
+            <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+        </div>
+    </section>
+
+    <!-- 监考人员 -->
+    <section class="panel" style="margin-top:18px">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">INVIGILATOR</div>
+                <h2>监考人员管理</h2>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="addInvigilator()">+ 添加监考</button>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>姓名</th><th>手机号</th><th>监考次数</th><th>操作</th></tr>
+                </thead>
+                <tbody id="invigilators"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div id="modal" hidden></div>
+
+<script src="/assets/js/common/api.js?v=11"></script>
+<script>
+const user = getUser();
+if (!user || user.role !== 2) location.href = '/auth/exam-staff-login.html';
+const el = id => document.getElementById(id);
+let rooms = [], arrangements = [], records = [], scores = [], signins = [], invigilators = [], plans = [];
+
+async function load() {
+    try {
+        const [roomList, arrList, regs, scoreList, signList, invigList, planList] = await Promise.all([
+            API.rooms(), API.arrangements(), API.registrations(), API.allScores(),
+            API.signins().catch(()=>[]), API.invigilators().catch(()=>[]), API.adminPlans().catch(()=>[])
+        ]);
+        rooms = roomList; arrangements = arrList; records = regs; scores = scoreList;
+        signins = signList; invigilators = invigList; plans = planList;
+
+        const animTo = window.animCount || ((node, v) => { node.textContent = v; });
+        animTo(el('room-count'), rooms.filter(r => r.status === 1).length);
+        animTo(el('seat-count'), rooms.filter(r => r.status === 1).reduce((s, r) => s + r.seatCount, 0));
+        animTo(el('pool-count'), regs.filter(r => r.status === 4).length);
+        animTo(el('arranged-count'), arrangements.length);
+
+        // Rooms
+        el('rooms').innerHTML = rooms.map(r => `<tr>
+            <td>${escHtml(r.roomCode)}</td><td>${escHtml(r.building)}</td><td>${escHtml(r.classroom)}</td>
+            <td>${r.seatCount}</td>
+            <td><span class="tag tag-${r.status === 1 ? 'success' : 'muted'}">${r.status === 1 ? '启用' : '禁用'}</span></td>
+            <td>
+                <button class="btn btn-sm" onclick="openRoomModal(${r.id})">编辑</button>
+                <button class="btn btn-sm" onclick="toggleRoom(${r.id}, ${r.status === 1 ? 0 : 1})">${r.status === 1 ? '禁用' : '启用'}</button>
+                <button class="btn btn-danger btn-sm" onclick="delRoom(${r.id})">删除</button>
+            </td>
+        </tr>`).join('');
+
+        // Arrangements
+        const roomOpts = rooms.filter(r => r.status === 1).map(r => `<option value="${r.id}">${escHtml(r.roomCode)} (${r.seatCount}座)</option>`).join('');
+        el('arrangements').innerHTML = arrangements.length ? arrangements.map(a => `<tr>
+            <td><b>${escHtml(a.ticket_no)}</b></td>
+            <td>${escHtml(a.real_name)}</td>
+            <td>${escHtml(a.plan_name)}</td>
+            <td>${escHtml(a.room_code)} (${escHtml(a.building)} ${escHtml(a.classroom)})</td>
+            <td>${a.seat_no}</td>
+            <td>${escHtml(a.trade_name)} / ${escHtml(a.level_name)}</td>
+            <td><button class="btn btn-sm" onclick="openSeatModal(${a.id}, ${a.room_id}, ${a.seat_no})">调座</button></td>
+        </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无编排结果，请点击"开始编排"</td></tr>';
+
+        // Scores
+        const confirmed = records.filter(r => r.status === 5 || r.status === 4);
+        el('scores').innerHTML = confirmed.map(r => {
+            const s = scores.find(x => x.registrationId === r.id);
+            const isPublished = s && s.published === 1;
+            const statusTag = s ? (isPublished ? '<span class="tag tag-success">已发布</span>' : '<span class="tag tag-warning">待发布</span>') : '<span class="tag tag-muted">未录入</span>';
+            let actions;
+            if (!s) {
+                actions = `<button class="btn btn-primary btn-sm" onclick="openScoreModal(${r.id})">录入成绩</button>`;
+            } else {
+                const logBtn = `<button class="btn btn-sm" onclick="showScoreLogs(${r.id})">修改记录</button>`;
+                actions = isPublished
+                    ? `<span class="meta">已发布</span> ${logBtn}`
+                    : `<button class="btn btn-sm" onclick="openScoreModal(${r.id})">修改成绩</button>
+                       <button class="btn btn-success btn-sm" onclick="publishScore(${r.id})">发布成绩</button>${logBtn}`;
+            }
+            return `<tr>
+                <td>${escHtml(r.realName)}</td>
+                <td>${escHtml(r.planName)}</td>
+                <td>${escHtml(r.tradeName)} / ${escHtml(r.levelName)}</td>
+                <td>${s?.theoryScore ?? '-'}</td>
+                <td>${s?.practiceScore ?? '-'}</td>
+                <td>${statusTag}</td>
+                <td>${actions}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无待录入成绩的考生</td></tr>';
+
+        // 签到管理
+        el('signins').innerHTML = signins.length ? signins.map(s => {
+            const statusTag = {0:'<span class="tag tag-warning">未签到</span>',1:'<span class="tag tag-success">已签到</span>',2:'<span class="tag tag-danger">缺考</span>'}[s.status] || '-';
+            const actions = s.status === 0
+                ? `<button class="btn btn-success btn-sm" onclick="signin(${s.arrangement_id})">签到</button> <button class="btn btn-danger btn-sm" onclick="absent(${s.arrangement_id})">标记缺考</button>`
+                : '<span class="meta">已处理</span>';
+            return `<tr>
+                <td>${escHtml(s.ticket_no)}</td><td>${escHtml(s.real_name)}</td><td>${escHtml(s.plan_name)}</td>
+                <td>${escHtml(s.room_code)} / ${s.seat_no}号</td>
+                <td>${s.signin_time?.substring(0,16) || '-'}</td>
+                <td>${statusTag}</td>
+                <td>${actions}</td>
+            </tr>`;
+        }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无签到数据</td></tr>';
+
+        // 监考人员
+        el('invigilators').innerHTML = invigilators.length ? invigilators.map(i => `<tr>
+            <td>${escHtml(i.name)}</td><td>${escHtml(i.phone || '-')}</td><td>${i.invigilate_count}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="delInvigilator(${i.id})">删除</button></td>
+        </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">暂无监考人员</td></tr>';
+
+        // 编排配置 - 计划下拉
+        el('cfg-plan').innerHTML = '<option value="">选择考试计划</option>' + plans.map(p => `<option value="${p.id}">${escHtml(p.planName)}</option>`).join('');
+
+        renderStaffCharts();
+        renderSeatPlanChips();
+        loadSeatArrangements();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+let staffCharts = {};
+function destroyStaffCharts() { Object.values(staffCharts).forEach(c => c && c.destroy()); staffCharts = {}; }
+
+function renderStaffCharts() {
+    destroyStaffCharts();
+    // 考场座位使用率
+    const seatLabels = rooms.map(r => r.roomCode);
+    const seatUsed = rooms.map(r => arrangements.filter(a => a.roomId === r.id).length);
+    const seatTotal = rooms.map(r => r.seatCount);
+    staffCharts.seat = new Chart(document.getElementById('chart-seat'), {
+        type: 'bar',
+        data: { labels: seatLabels, datasets: [
+            { label: '已使用', data: seatUsed, backgroundColor: '#3b82f6', borderRadius: 6 },
+            { label: '总座位', data: seatTotal, backgroundColor: '#e2e8f0', borderRadius: 6 }
+        ]},
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    // 签到状态分布
+    const signed = signins.filter(s => s.status === 1).length;
+    const absent = signins.filter(s => s.status === 2).length;
+    const pending = signins.filter(s => s.status === 0).length;
+    staffCharts.signin = new Chart(document.getElementById('chart-signin'), {
+        type: 'doughnut',
+        data: { labels: ['已签到','缺考','未签到'], datasets: [{ data: [signed, absent, pending], backgroundColor: ['#10b981','#ef4444','#94a3b8'], borderWidth: 0 }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } } }
+    });
+
+    // 成绩分布
+    const publishedScores = scores.filter(s => s.published === 1);
+    const theoryBuckets = [0,0,0,0,0]; // <60, 60-69, 70-79, 80-89, 90+
+    const pracBuckets = [0,0,0,0,0];
+    publishedScores.forEach(s => {
+        const t = Number(s.theoryScore ?? 0), p = Number(s.practicalScore ?? 0);
+        theoryBuckets[Math.min(4, Math.floor(t/10)-5 < 0 ? 0 : Math.floor(t/10)-5)]++;
+        pracBuckets[Math.min(4, Math.floor(p/10)-5 < 0 ? 0 : Math.floor(p/10)-5)]++;
+    });
+    const scoreLabels = ['<60','60-69','70-79','80-89','90+'];
+    staffCharts.score = new Chart(document.getElementById('chart-score'), {
+        type: 'bar',
+        data: { labels: scoreLabels, datasets: [
+            { label: '理论', data: theoryBuckets, backgroundColor: '#3b82f6', borderRadius: 4 },
+            { label: '实操', data: pracBuckets, backgroundColor: '#8b5cf6', borderRadius: 4 }
+        ]},
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+}
+
+/* ===== 考场管理 ===== */
+function openRoomModal(id) {
+    const room = id ? rooms.find(r => r.id === id) : null;
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>${room ? '编辑' : '新增'}考场</h2>
+        <form class="form" id="room-form">
+            <label>考场编号<input name="roomCode" required placeholder="如 A-101" value="${escHtml(room?.roomCode || '')}"></label>
+            <label>楼栋<input name="building" required placeholder="如 教学楼A" value="${escHtml(room?.building || '')}"></label>
+            <label>教室编号<input name="classroom" required placeholder="如 101" value="${escHtml(room?.classroom || '')}"></label>
+            <label>座位数量<input name="seatCount" type="number" min="1" required value="${room?.seatCount || 30}"></label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">${room ? '保存' : '确定'}</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#room-form').onsubmit = async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const data = { roomCode: f.get('roomCode'), building: f.get('building'), classroom: f.get('classroom'), seatCount: parseInt(f.get('seatCount')) };
+        try {
+            if (room) await API.updateRoom(room.id, data);
+            else await API.createRoom(data);
+            toast(room ? '已保存' : '考场创建成功', 'success'); closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+async function toggleRoom(id, status) {
+    try { await API.toggleRoomStatus(id, status); toast('考场状态已更新', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+}
+
+async function delRoom(id) {
+    if (!confirm('确认删除该考场？')) return;
+    try { await API.deleteRoom(id); toast('已删除', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 编排（增量） ===== */
+async function arrangeNow() {
+    if (!confirm('确认开始编排？仅会编排尚未安排座位的已缴费考生，不影响已有结果。')) return;
+    try {
+        const r = await API.arrange();
+        toast(r.message || `编排完成，本次安排 ${r.total ?? 0} 人`, 'success');
+        load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function resetArrange() {
+    if (!confirm('确认重置全部编排？将清空所有座位安排与准考证，已确认考生回退为已缴费，可重新编排。')) return;
+    try {
+        await API.resetArrangements();
+        toast('已重置全部编排', 'success');
+        load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+function openSeatModal(arrId, roomId, seatNo) {
+    const roomOpts = rooms.filter(r => r.status === 1).map(r => `<option value="${r.id}" ${r.id === roomId ? 'selected' : ''}>${escHtml(r.roomCode)} (${r.seatCount}座)</option>`).join('');
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>手动调整座位</h2>
+        <div class="notice" style="margin-bottom:12px">提示：若目标座位已安排其他考生，提交后系统将自动把两位考生的座位互换；空座位则直接移动。</div>
+        <form class="form" id="seat-form">
+            <label>目标考场<select name="roomId" required>${roomOpts}</select></label>
+            <label>座位号<input name="seatNo" type="number" min="1" required value="${seatNo}"></label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">确认调整</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#seat-form').onsubmit = async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        try {
+            await API.updateArrangement(arrId, { roomId: parseInt(f.get('roomId')), seatNo: parseInt(f.get('seatNo')) });
+            toast('座位已调整', 'success'); closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+function exportArrangements() {
+    if (!arrangements.length) { toast('暂无编排数据', 'warning'); return; }
+    // CSV 注入防护 + 字段含逗号时正确引用
+    const csvCell = v => {
+        let s = String(v == null ? '' : v);
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const header = ['准考证号','考生','身份证号','考试计划','考场','楼栋','教室','座位号','工种','等级'];
+    const rows = arrangements.map(a => [a.ticket_no,a.real_name,a.id_card,a.plan_name,a.room_code,a.building,a.classroom,a.seat_no,a.trade_name,a.level_name]);
+    const csv = '﻿' + [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '考场编排表_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click(); URL.revokeObjectURL(url);
+    toast('编排表已导出', 'success');
+}
+
+/* ===== 成绩管理 ===== */
+function openScoreModal(regId) {
+    const r = records.find(x => x.id === regId);
+    const exist = scores.find(x => x.registrationId === regId);
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>${exist ? '修改' : '录入'}成绩 - ${escHtml(r.realName)}</h2>
+        ${exist ? '<div class="notice" style="margin-bottom:10px">修改保存后成绩将重新变为"待发布"，需重新发布。</div>' : ''}
+        <form class="form" id="score-form">
+            <label>理论成绩<input name="theory" type="number" step="0.1" min="0" max="100" required value="${exist?.theoryScore ?? ''}"></label>
+            <label>实操成绩<input name="practice" type="number" step="0.1" min="0" max="100" required value="${exist?.practiceScore ?? ''}"></label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#score-form').onsubmit = async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        try {
+            await API.saveScore({ registrationId: regId, theory: parseFloat(f.get('theory')), practice: parseFloat(f.get('practice')) });
+            toast(exist ? '成绩已更正' : '成绩已保存', 'success'); closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+async function publishScore(regId) {
+    if (!confirm('确认发布该考生成绩？发布后考生可查看，合格者将自动生成证书。')) return;
+    try { await API.publishScore(regId); toast('成绩已发布', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function showScoreLogs(regId) {
+    try {
+        const logs = await API.scoreChangeLogs(regId);
+        const body = logs.length ? logs.map(l => `
+            <div style="padding:10px 0;border-bottom:1px solid var(--line)">
+                <b>更正记录</b> <span class="meta">${escHtml(l.operator_name || '-')}　${(l.created_at || '').substring(0,16).replace('T',' ')}</span>
+                <div class="meta" style="margin-top:4px">原成绩：${escHtml(l.old_value || '-')}</div>
+                <div class="meta">新成绩：${escHtml(l.new_value || '-')}（${escHtml(l.reason || '')}）</div>
+            </div>`).join('') : '<div class="notice">暂无成绩更正记录</div>';
+        el('modal').hidden = false;
+        el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px">
+            <h2>成绩修改留痕</h2>${body}
+            <button class="btn" style="width:100%;margin-top:14px" onclick="closeModal()">关闭</button>
+        </div></div>`;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 签到管理 ===== */
+async function signin(arrId) {
+    try { await API.doSignin(arrId, 2); toast('签到成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function absent(arrId) {
+    if (!confirm('确认标记该考生为缺考？')) return;
+    try { await API.markAbsent(arrId); toast('已标记缺考', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 监考人员 ===== */
+async function addInvigilator() {
+    const name = prompt('监考人员姓名：');
+    if (!name) return;
+    const phone = prompt('手机号：') || '';
+    try { await API.addInvigilator({ name, phone }); toast('添加成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function delInvigilator(id) {
+    if (!confirm('确认删除该监考人员？')) return;
+    try { await API.deleteInvigilator(id); toast('已删除', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 编排配置 ===== */
+async function loadConfig() {
+    const planId = el('cfg-plan').value;
+    if (!planId) return;
+    try {
+        const cfg = await API.getArrConfig(planId);
+        if (cfg) {
+            el('cfg-seats').value = cfg.default_seat_count;
+            el('cfg-gap').value = cfg.seat_gap;
+            el('cfg-shuffle').value = cfg.shuffle_unit;
+        }
+    } catch (e) { /* no config yet */ }
+}
+
+async function saveConfig() {
+    const planId = el('cfg-plan').value;
+    if (!planId) { toast('请选择考试计划', 'warning'); return; }
+    try {
+        await API.saveArrConfig(planId, {
+            defaultSeatCount: parseInt(el('cfg-seats').value),
+            seatGap: parseInt(el('cfg-gap').value),
+            shuffleUnit: parseInt(el('cfg-shuffle').value)
+        });
+        toast('编排配置已保存', 'success');
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+function closeModal() { el('modal').hidden = true; }
+load();
+
+/* ===== 座位总览（考场座位可视化 + 点击调座） ===== */
+let seatPlanId = '', seatRoomId = '', seatArrangements = [];
+
+function renderSeatPlanChips() {
+    const list = [{ id: '', name: '全部' }].concat(plans.map(p => ({ id: String(p.id), name: p.planName })));
+    el('seat-plan-chips').innerHTML = list.map(c =>
+        `<span class="chip${seatPlanId === c.id ? ' active' : ''}" role="button" tabindex="0" data-plan="${escHtml(c.id)}">${escHtml(c.name)}</span>`).join('');
+}
+
+function ensureSeatRoomSelect() {
+    const sel = el('seat-room-select');
+    if (!rooms.length) { sel.innerHTML = '<option value="">暂无考场</option>'; seatRoomId = ''; return; }
+    if (!rooms.some(r => String(r.id) === String(seatRoomId))) seatRoomId = String(rooms[0].id);
+    sel.innerHTML = rooms.map(r => `<option value="${r.id}"${String(r.id) === String(seatRoomId) ? ' selected' : ''}>${escHtml(r.roomCode)} · ${escHtml(r.building)} ${escHtml(r.classroom)}（${r.seatCount} 座${r.status === 1 ? '' : '，已禁用'}）</option>`).join('');
+}
+
+async function loadSeatArrangements() {
+    const clearSk = window.skeletonRows ? skeletonRows(el('seat-grid-wrap'), 4, 8) : () => { };
+    try {
+        seatArrangements = seatPlanId
+            ? await API.request('/arrangements?planId=' + encodeURIComponent(seatPlanId))
+            : arrangements;
+    } catch (e) {
+        seatArrangements = [];
+        toast(e.message, 'error');
+    }
+    clearSk();
+    ensureSeatRoomSelect();
+    renderSeatGrid();
+}
+
+function renderSeatGrid() {
+    const wrap = el('seat-grid-wrap');
+    let grid = el('seat-grid');
+    if (!grid) { wrap.innerHTML = '<div class="seat-grid" id="seat-grid"></div>'; grid = el('seat-grid'); }
+    const room = rooms.find(r => String(r.id) === String(seatRoomId));
+    el('seat-summary').textContent = '';
+    if (!room) { grid.innerHTML = '<div class="meta" style="padding:10px 0">暂无考场，请先在"考场配置"中新增</div>'; return; }
+    const roomArrs = seatArrangements.filter(a => String(a.room_id) === String(room.id));
+    const usedMap = {};
+    roomArrs.forEach(a => { usedMap[a.seat_no] = a; });
+    let html = '';
+    for (let n = 1; n <= room.seatCount; n++) {
+        const a = usedMap[n];
+        html += a
+            ? `<span class="seat seat-used" data-arr="${a.id}" title="${escHtml(n + ' 号 · ' + (a.real_name || '-') + ' · 准考证号 ' + (a.ticket_no || '-'))}">${n}</span>`
+            : `<span class="seat seat-free" title="${n} 号 · 空位">${n}</span>`;
+    }
+    grid.innerHTML = html || '<div class="meta" style="padding:10px 0">该考场座位数为 0</div>';
+    el('seat-summary').textContent = `${room.roomCode}：已编排 ${roomArrs.length} / ${room.seatCount} 座`;
+}
+
+async function refreshSeatOverview() {
+    try {
+        if (seatPlanId) {
+            seatArrangements = await API.request('/arrangements?planId=' + encodeURIComponent(seatPlanId));
+        } else {
+            arrangements = await API.arrangements();
+            seatArrangements = arrangements;
+        }
+    } catch (e) { toast(e.message, 'error'); return; }
+    renderSeatGrid();
+}
+
+/* 点击已占座位 → 调座小面板（复用 openSeatModal 同款 API.updateArrangement 与错误处理） */
+function openSeatPanel(arrId) {
+    const a = seatArrangements.find(x => x.id === arrId) || arrangements.find(x => x.id === arrId);
+    if (!a) return;
+    const room = rooms.find(r => r.id === a.room_id);
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:480px">
+        <h2>调整座位</h2>
+        <div class="notice" style="margin-bottom:12px">当前考生：<b>${escHtml(a.real_name || '-')}</b>（准考证号 ${escHtml(a.ticket_no || '-')}）<br>
+        当前座位：${escHtml(room ? room.roomCode : String(a.room_id))} ${a.seat_no} 号</div>
+        <div class="meta" style="margin-bottom:10px">若目标座位已安排其他考生，提交后系统将自动互换两位考生的座位；空位则直接移动。</div>
+        <form class="form" id="seat-panel-form">
+            <label>目标座位号（${escHtml(room ? room.roomCode : '')} 共 ${room ? room.seatCount : '-'} 座）
+                <input name="seatNo" type="number" min="1" max="${room ? room.seatCount : 999}" required value="${a.seat_no}">
+            </label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">确认调整</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#seat-panel-form').onsubmit = async ev => {
+        ev.preventDefault();
+        const seatNo = parseInt(new FormData(ev.target).get('seatNo'), 10);
+        if (seatNo === a.seat_no) { toast('目标座位与当前座位相同', 'warning'); return; }
+        try {
+            await API.updateArrangement(a.id, { roomId: a.room_id, seatNo: seatNo });
+            toast('座位已调整', 'success');
+            closeModal();
+            refreshSeatOverview();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+el('seat-plan-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip || chip.dataset.plan === seatPlanId) return;
+    seatPlanId = chip.dataset.plan || '';
+    renderSeatPlanChips();
+    loadSeatArrangements();
+});
+
+el('seat-grid-wrap').addEventListener('click', e => {
+    const seat = e.target.closest('.seat');
+    if (!seat || !seat.dataset.arr) return;
+    document.querySelectorAll('#seat-grid .seat-selected').forEach(s => s.classList.remove('seat-selected'));
+    seat.classList.add('seat-selected');
+    openSeatPanel(Number(seat.dataset.arr));
+});
+
+/* ===== Ctrl+K 命令面板 ===== */
+function jumpTo(id) {
+    const node = document.getElementById(id);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+if (window.cmdk) {
+    cmdk([
+        { label: '跳转：座位总览', hint: '面板', action: () => jumpTo('sec-seats') },
+        { label: '跳转：考场配置', hint: '面板', action: () => jumpTo('sec-rooms') },
+        { label: '跳转：考场编排', hint: '面板', action: () => jumpTo('sec-arrange') },
+        { label: '跳转：编排结果', hint: '面板', action: () => jumpTo('sec-result') },
+        { label: '跳转：成绩录入', hint: '面板', action: () => jumpTo('sec-scores') },
+        { label: '跳转：签到管理', hint: '面板', action: () => jumpTo('sec-signins') },
+        { label: '跳转：编排配置', hint: '面板', action: () => jumpTo('sec-config') },
+        { label: '开始编排', hint: '动作', action: () => arrangeNow() },
+        { label: '导出编排表', hint: '动作', action: () => exportArrangements() }
+    ]);
+}
+
+/* ===== 滚动进度条 + 回到顶部 ===== */
+(function(){
+  const bar = document.getElementById('scroll-progress');
+  const btn = document.getElementById('back-to-top');
+  function onScroll() {
+    const st = window.scrollY || document.documentElement.scrollTop;
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = h > 0 ? (st / h) * 100 : 0;
+    if (bar) bar.style.width = pct + '%';
+    if (btn) btn.classList.toggle('visible', st > 400);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  if (btn) btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+</body>
+</html>

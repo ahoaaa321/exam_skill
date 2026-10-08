@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>考务人员登录 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+    <style>
+        /* 认证创新组件：密码可见性切换 / 记住用户名 / 卡片微倾斜（hover 时释放入场动画的 fill 以便倾斜生效） */
+        .pwd-field { position: relative; }
+        .pwd-field input { padding-right: 44px; }
+        .pwd-toggle {
+            position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+            width: 32px; height: 32px; padding: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: transparent; border: none; border-radius: 8px;
+            color: rgba(255,255,255,.55); cursor: pointer;
+        }
+        .pwd-toggle:hover { color: #fff; background: rgba(255,255,255,.14); }
+        .pwd-toggle .eye-off { display: none; }
+        .pwd-toggle.is-visible .eye-on { display: none; }
+        .pwd-toggle.is-visible .eye-off { display: inline-flex; }
+        .remember-row { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .remember-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+        .remember-row span { color: rgba(255,255,255,.75); }
+        .auth-card.tilt-card:not(.shake):hover { animation: none; }
+    </style>
+</head>
+<body>
+<main class="auth-page">
+            <canvas class="auth-canvas-bg" data-src="/assets/img/auth-bg.png"></canvas>
+    <div class="auth-video-overlay"></div><div class="auth-bg-orbs"><div class="auth-orb auth-orb-1"></div><div class="auth-orb auth-orb-2"></div><div class="auth-orb auth-orb-3"></div></div>
+    <div class="auth-wrap">
+        <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>考务管理端</strong></a>
+        <section class="auth-card tilt-card">
+            <div class="eyebrow">EXAM STAFF</div>
+            <h1>考务人员登录</h1>
+            <p>配置考场信息、执行考场编排与准考证生成。</p>
+            <form id="login-form" class="form">
+                <label>考务账号
+                    <input name="username" required placeholder="请输入考务人员账号" autocomplete="username">
+                </label>
+                <label>密码
+                    <div class="pwd-field">
+                        <input name="password" required type="password" placeholder="请输入密码" autocomplete="current-password">
+                        <button type="button" class="pwd-toggle" aria-label="显示密码">
+                            <svg class="eye-on" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94C16.23 19.17 14.16 20 12 20 5 20 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        </button>
+                    </div>
+                </label>
+                <label class="remember-row">
+                    <input type="checkbox" id="remember-user" checked>
+                    <span>记住用户名</span>
+                </label>
+                <button class="btn btn-primary" type="submit">进入考务端</button>
+            </form>
+            <div class="auth-switch">
+                <button type="button" class="auth-switch-btn">
+                    其他身份登录
+                    <svg class="auth-switch-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="auth-switch-menu" role="menu">
+                    <a href="/auth/login.html" role="menuitem"><span class="auth-switch-ico">🎓</span>考生登录</a>
+                    <a href="/auth/admin-login.html" role="menuitem"><span class="auth-switch-ico">👨‍💼</span>管理员登录</a>
+                    <a href="/auth/super-admin-login.html" role="menuitem"><span class="auth-switch-ico">⚙️</span>超级管理员登录</a>
+                </div>
+            </div>
+            <div class="hint">演示账号：staff / 123456</div>
+        </section>
+    </div>
+</main>
+<script src="/assets/js/common/api.js?v=12"></script>
+<script src="/assets/js/auth/auth.js?v=11"></script><script src="/assets/js/auth/auth-canvas.js?v=1"></script><script src="/assets/js/auth/auth-orbs.js?v=1"></script><script src="/assets/js/auth/auth-switch.js?v=1"></script>
+<script>
+(function () {
+    var ROLE = 2;
+    var REMEMBER_KEY = 'exam-remember-user';
+    var card = document.querySelector('.auth-card');
+    var form = document.getElementById('login-form');
+    var usernameInput = form.querySelector('[name="username"]');
+    var rememberCb = document.getElementById('remember-user');
+
+    /* 错误抖动：350ms 后移除类，便于下次可重复触发 */
+    function shakeCard() {
+        if (!card) return;
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+        setTimeout(function () { card.classList.remove('shake'); }, 350);
+    }
+
+    /* 密码可见性切换 */
+    document.querySelectorAll('.pwd-toggle').forEach(function (btn) {
+        var input = btn.parentElement.querySelector('input');
+        btn.addEventListener('click', function () {
+            var show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+            btn.classList.toggle('is-visible', show);
+        });
+    });
+
+    /* 记住用户名：页面加载时有值则预填并勾选 */
+    var saved = null;
+    try { saved = localStorage.getItem(REMEMBER_KEY); } catch (e) { }
+    if (saved && usernameInput && rememberCb) {
+        usernameInput.value = saved;
+        rememberCb.checked = true;
+    }
+
+    /* 包装 API.login（不改动 auth.js）：成功按勾选存/清用户名；失败抖动卡片 */
+    var rawLogin = API.login.bind(API);
+    API.login = function (creds) {
+        return rawLogin(creds).then(function (user) {
+            try {
+                if (rememberCb && rememberCb.checked && creds && creds.username) {
+                    localStorage.setItem(REMEMBER_KEY, creds.username);
+                } else {
+                    localStorage.removeItem(REMEMBER_KEY);
+                }
+            } catch (e) { }
+            if (ROLE && user && user.role !== ROLE) shakeCard();
+            return user;
+        }, function (error) {
+            shakeCard();
+            throw error;
+        });
+    };
+})();
+bindLogin(2)
+</script>
+</body>
+</html>

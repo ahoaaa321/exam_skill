@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>我的报名流程 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>我的报名流程</strong></a>
+    <nav>
+        <a href="/">考试计划</a>
+        <a href="/student/dashboard.html">个人中心</a>
+        <a href="#" onclick="logout();return false">退出</a>
+    </nav>
+</header>
+
+<main class="layout">
+    <section class="hero">
+        <div>
+            <div class="eyebrow">APPLICATION TRACKER</div>
+            <h1>我的报名流程</h1>
+            <p>每一步都有明确状态。完成当前待办后，系统会开放下一阶段操作。</p>
+        </div>
+    </section>
+    <section id="content"></section>
+</main>
+
+<script src="/assets/js/common/api.js?v=11"></script>
+<script>
+const u = getUser();
+if (!u) location.href = '/auth/login.html';
+const content = document.querySelector('#content');
+// 7 步流程（与个人中心环形进度同一步骤口径）
+const labels = ['选择考试计划', '提交报名', '资格审核', '缴费确认', '考场编排', '参加考试', '获取证书'];
+const stepDescs = [
+    '挑选工种与等级，确认报名条件',
+    '填写学历、工龄与紧急联系人信息',
+    '管理员审核报名资料，约 1-3 个工作日',
+    '审核通过后在线支付考试费用',
+    '考务编排考场，生成准考证号与座位',
+    '携带身份证件与准考证按时赴考',
+    '成绩合格后自动生成电子证书'
+];
+const STATUS_NAMES = ['待提交','待审核','审核通过','审核退回','已缴费','已确认','已取消'];
+let firstRender = true; // 仅首次渲染时做打勾 stagger 弹入
+
+// 按报名状态映射：已完成步数 done 与当前步 current（0 表示无当前步，如已取消）
+function flowState(r) {
+    switch (r.status) {
+        case 0: return { done: 1, current: 2 };
+        case 1: return { done: 2, current: 3 };
+        case 2: return { done: 3, current: 4 };
+        case 3: return { done: 2, current: 3 }; // 退回：重新进入审核
+        case 4: return { done: 4, current: 5 };
+        case 5: return { done: 5, current: 6 };
+        case 6: return { done: 2, current: 0 }; // 已取消：不再推进
+        default: return { done: 0, current: 1 };
+    }
+}
+
+async function load() {
+    try {
+        const records = await API.myRegistrations();
+        if (!records.length) {
+            content.innerHTML = '<section class="panel"><h2>暂无报名记录</h2><p class="meta">请先从考试计划选择一项考试并提交报名。</p><a class="btn btn-primary" href="/">浏览考试计划</a></section>';
+            firstRender = false;
+            return;
+        }
+        content.innerHTML = records.map(r => {
+            const { done, current } = flowState(r);
+            let doneSeq = 0; // 已完成项的序号，用于 stagger 动画延迟
+            const items = labels.map((x, i) => {
+                const n = i + 1;
+                const cls = n <= done ? 'done' : (n === current ? 'current' : '');
+                const dotText = n <= done ? '✓' : n;
+                // 首次渲染：已完成步骤依次 60ms 弹入；之后渲染不带动画延迟
+                const delay = firstRender && n <= done ? ` style="animation-delay:${(doneSeq++) * 60}ms"` : '';
+                const desc = (n === 3 && r.status === 3)
+                    ? '审核退回：' + escHtml(r.rejectReason || '请查看退回原因后重新提交')
+                    : escHtml(stepDescs[i]);
+                return `<div class="timeline-item ${cls}">
+                    <div class="tl-dot"${delay}>${dotText}</div>
+                    <div style="padding-top:4px">
+                        <b style="font-size:14px">${escHtml(x)}</b>
+                        <div class="meta" style="margin-top:2px">${desc}</div>
+                    </div>
+                </div>`;
+            }).join('');
+            return `<section class="panel" style="margin-bottom:16px">
+                <div class="eyebrow">APPLICATION #${r.id}</div>
+                <div class="toolbar">
+                    <div><h2>${escHtml(r.planName)}</h2><div class="meta">${escHtml(r.tradeName)} / ${escHtml(r.levelName)}　·　考生：${escHtml(r.realName)}</div></div>
+                    <span class="tag tag-${r.status === 5 ? 'success' : r.status === 3 ? 'danger' : r.status === 6 ? 'muted' : 'info'}">${STATUS_NAMES[r.status]}</span>
+                </div>
+                ${r.rejectReason ? `<div class="notice notice-danger" style="margin-top:12px">审核意见：${escHtml(r.rejectReason)}</div>` : ''}
+                <div class="timeline vert">${items}</div>
+                <div style="margin-top:18px">
+                    ${r.status === 2 ? `<button class="btn btn-primary" onclick="pay(${r.id})">确认缴费</button>` : ''}
+                    ${r.status === 5 ? `<button class="btn btn-primary" onclick="ticket(${r.id})">查看准考证</button>` : ''}
+                    ${r.status === 1 ? '<span class="meta">资料已提交，请等待管理员审核</span>' : ''}
+                    ${r.status === 4 ? '<span class="meta">缴费成功，等待考务人员编排考场</span>' : ''}
+                    ${r.status === 6 ? '<span class="meta">该报名已取消，可从考试计划重新报名</span>' : ''}
+                </div>
+            </section>`;
+        }).join('');
+        firstRender = false;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function pay(id) {
+    try { await API.pay(id); toast('缴费确认成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function ticket(id) {
+    try {
+        const t = await API.ticket(id);
+        alert(`准考证号：${t.ticketNo}\n考场：${t.room}\n座位：${t.seat}`);
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+load();
+</script>
+</body>
+</html>

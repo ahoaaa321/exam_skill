@@ -1,0 +1,1122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>管理端 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+    <script src="/assets/js/vendor/chart.umd.min.js"></script>
+    <style>
+        /* 统计卡迷你趋势图（.sparkline 容器来自 theme.css） */
+        .spark-slot { margin-top: 10px; text-align: right; }
+        .spark-empty { font-size: 12px; color: var(--muted); }
+        /* 状态筛选 chips 间距 */
+        #reg-status-chips { margin: 12px 0 2px; }
+        /* 表格空状态引导 */
+        .empty-state { text-align: center; padding: 38px 16px 34px; }
+        .empty-state svg { width: 68px; height: 68px; color: var(--line); margin-bottom: 10px; }
+        .empty-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+        .empty-desc { font-size: 13px; color: var(--muted); margin: 6px 0 14px; }
+        /* 命令面板跳转时避开吸顶导航遮挡 */
+        .module-section, #stats { scroll-margin-top: 64px; }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>管理控制台</strong></a>
+    <nav>
+        <a href="/">考生端</a>
+        <a href="/auth/exam-staff-login.html">考务端</a>
+        <a href="/auth/super-admin-login.html">系统端</a>
+        <a href="#" onclick="logout();return false">退出</a>
+    </nav>
+</header>
+
+<!-- 模块快捷导航：点击精准定位，无需滚动 -->
+<nav class="module-nav" id="module-nav" aria-label="功能模块导航">
+    <div class="module-nav-inner">
+        <a class="module-chip active" href="#stats" data-target="stats">📊 数据概览</a>
+        <a class="module-chip" href="#m-reg" data-target="m-reg">👥 用户注册</a>
+        <a class="module-chip" href="#m-category" data-target="m-category">🧩 分类汇总</a>
+        <a class="module-chip" href="#m-plans" data-target="m-plans">📅 计划管理</a>
+        <a class="module-chip" href="#m-audit" data-target="m-audit">✅ 资格审核</a>
+        <a class="module-chip" href="#m-scores" data-target="m-scores">📝 成绩管理</a>
+        <a class="module-chip" href="#m-certs" data-target="m-certs">🏅 证书发放</a>
+        <a class="module-chip" href="#m-payments" data-target="m-payments">💰 缴费流水</a>
+        <a class="module-chip" href="#m-notices" data-target="m-notices">📢 公告管理</a>
+        <a class="module-chip" href="#m-tickets" data-target="m-tickets">🎫 售后工单</a>
+    </div>
+</nav>
+
+<div class="scroll-progress" id="scroll-progress"></div>
+<button class="back-to-top" id="back-to-top" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<main class="layout">
+    <section class="hero">
+        <div>
+            <div class="eyebrow">ADMIN CONSOLE</div>
+            <h1>考试运营控制台</h1>
+            <p>发布考试计划、审核考生报名资格、管理成绩与考务全流程。</p>
+        </div>
+        <div class="hero-code">ROLE: ADMIN<br>ACCESS: PLAN + REVIEW + SCORE</div>
+    </section>
+
+    <!-- 统计概览 -->
+    <section class="grid module-section" id="stats" data-module="数据概览">
+        <div class="panel span-3"><div class="label">全部报名</div><div class="metric" id="total">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-total" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">待审核</div><div class="metric" id="pending" style="color:var(--warning)">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-pending" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">已缴费</div><div class="metric" id="paid" style="color:var(--primary)">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-paid" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">已确认</div><div class="metric" id="confirmed" style="color:var(--success)">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-confirmed" width="160" height="40"></canvas></span></div></div>
+    </section>
+
+    <section class="grid" style="margin-top:14px">
+        <div class="panel span-3"><div class="label">缴费总额(元)</div><div class="metric" id="fee-total" style="color:#0ea5e9">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-fee" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">已编排</div><div class="metric" id="arranged" style="color:#8b5cf6">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-arranged" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">审核退回</div><div class="metric" id="rejected" style="color:var(--warning)">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-rejected" width="160" height="40"></canvas></span></div></div>
+        <div class="panel span-3"><div class="label">已取消</div><div class="metric" id="canceled" style="color:var(--muted)">0</div><div class="spark-slot"><span class="spark-empty">暂无趋势</span><span class="sparkline"><canvas id="spark-canceled" width="160" height="40"></canvas></span></div></div>
+    </section>
+
+    <section class="grid" style="margin-top:14px">
+        <div class="panel span-4"><div class="label">成绩已发布</div><div class="metric" id="score-published">0</div></div>
+        <div class="panel span-4"><div class="label">合格 / 合格率</div><div class="metric" id="pass-rate" style="color:var(--success)">0%</div></div>
+        <div class="panel span-4"><div class="label">已发布平均分</div><div class="metric" id="avg-score">0</div></div>
+    </section>
+
+    <!-- 数据可视化 -->
+    <section class="grid" style="margin-top:18px">
+        <div class="panel span-6">
+            <div class="eyebrow">STATUS DISTRIBUTION</div>
+            <h3 style="margin:4px 0 12px">报名状态分布</h3>
+            <canvas id="chart-status" height="180"></canvas>
+        </div>
+        <div class="panel span-6">
+            <div class="eyebrow">TRADE DISTRIBUTION</div>
+            <h3 style="margin:4px 0 12px">工种报名分布</h3>
+            <canvas id="chart-trade" height="180"></canvas>
+        </div>
+    </section>
+    <section class="grid" style="margin-top:14px">
+        <div class="panel span-6">
+            <div class="eyebrow">LEVEL DISTRIBUTION</div>
+            <h3 style="margin:4px 0 12px">等级报名分布</h3>
+            <canvas id="chart-level" height="180"></canvas>
+        </div>
+        <div class="panel span-6">
+            <div class="eyebrow">MONTHLY TREND</div>
+            <h3 style="margin:4px 0 12px">月度报名趋势</h3>
+            <canvas id="chart-trend" height="180"></canvas>
+        </div>
+    </section>
+
+    <!-- 用户注册数量统计 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-reg">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">USER REGISTRATION</div>
+                <h2>用户注册数量统计</h2>
+                <div class="meta">按月统计近三年用户注册数量，可切换年份查看。</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <label class="meta">选择年份：</label>
+                <select id="reg-year" onchange="renderRegChart()" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px"></select>
+            </div>
+        </div>
+        <canvas id="chart-reg-count" height="120" style="margin-top:12px"></canvas>
+    </section>
+
+    <!-- 全平台报考分类汇总 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-category">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">REGISTRATION CATEGORY SUMMARY</div>
+                <h2>全平台报考分类汇总</h2>
+                <div class="meta">按工种与等级汇总全平台报名数据，含通过/退回/取消/收费统计。</div>
+            </div>
+            <button class="btn" onclick="exportCategoryCSV()">导出CSV</button>
+        </div>
+        <div class="table-wrap table-scroll" style="margin-top:12px">
+            <table>
+                <thead>
+                    <tr><th>工种</th><th>等级</th><th>报名总数</th><th>审核通过</th><th>审核退回</th><th>已取消</th><th>收费总额</th><th>占比</th></tr>
+                </thead>
+                <tbody id="category-summary"></tbody>
+            </table>
+        </div>
+        <canvas id="chart-category" height="100" style="margin-top:16px"></canvas>
+    </section>
+
+    <!-- 考试计划管理 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-plans">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">EXAM PLANS</div>
+                <h2>考试计划管理</h2>
+            </div>
+            <button class="btn btn-primary" onclick="openPlanModal()">+ 新增计划</button>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>计划名称</th><th>工种/等级</th><th>报名时间</th><th>人数</th><th>费用</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="plans"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 报名审核 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-audit">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">REVIEW QUEUE</div>
+                <h2>资格审核</h2>
+            </div>
+            <div style="display:flex;gap:8px">
+                <select id="filter-status" onchange="renderRegs()">
+                    <option value="">全部状态</option>
+                    <option value="0">待提交</option>
+                    <option value="1">待审核</option>
+                    <option value="2">审核通过</option>
+                    <option value="3">审核退回</option>
+                    <option value="4">已缴费</option>
+                    <option value="5">已确认</option>
+                    <option value="6">已取消</option>
+                </select>
+                <button class="btn btn-primary" onclick="batchApprove()">批量通过待审核</button>
+            </div>
+        </div>
+        <!-- 状态 chips 筛选：与上方下拉框双向同步，纯前端过滤 -->
+        <div class="chips" id="reg-status-chips" role="tablist" aria-label="按状态筛选报名">
+            <button class="chip active" type="button" data-status="">全部</button>
+            <button class="chip" type="button" data-status="0">待提交</button>
+            <button class="chip" type="button" data-status="1">待审核</button>
+            <button class="chip" type="button" data-status="2">审核通过</button>
+            <button class="chip" type="button" data-status="3">审核退回</button>
+            <button class="chip" type="button" data-status="4">已缴费</button>
+            <button class="chip" type="button" data-status="5">已确认</button>
+            <button class="chip" type="button" data-status="6">已取消</button>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>考生</th><th>身份证号</th><th>考试计划</th><th>工种/等级</th><th>学历/工龄</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="list"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 成绩管理 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-scores">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">SCORE MANAGEMENT</div>
+                <h2>成绩管理</h2>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>考生</th><th>考试计划</th><th>工种/等级</th><th>理论成绩</th><th>实操成绩</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="scores"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 证书发放 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-certs">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">CERTIFICATE ISSUANCE</div>
+                <h2>证书发放管理</h2>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>考生</th><th>考试计划</th><th>工种/等级</th><th>证书编号</th><th>发证日期</th><th>状态</th><th>操作</th></tr>
+                </thead>
+                <tbody id="certs"></tbody>
+            </table>
+        </div>
+    </section>
+    <!-- 缴费记录 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-payments">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">PAYMENT RECORDS</div>
+                <h2>缴费流水</h2>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>交易号</th><th>考生</th><th>考试计划</th><th>金额</th><th>支付方式</th><th>状态</th><th>支付时间</th></tr>
+                </thead>
+                <tbody id="payments"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 公告管理 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-notices">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">ANNOUNCEMENTS</div>
+                <h2>公告管理</h2>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn" onclick="openImportAnnouncement()">📥 批量导入</button>
+                <button class="btn btn-primary" onclick="openAnnouncementModal()">+ 新增公告</button>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>标题</th><th>内容摘要</th><th>置顶</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="announcements"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 售后服务 -->
+    <section class="panel module-section" style="margin-top:18px" id="m-tickets">
+        <div class="toolbar">
+            <div>
+                <div class="eyebrow">AFTER-SALES SERVICE</div>
+                <h2>售后服务工单</h2>
+                <div class="meta">处理考生缴费后的咨询、退款、投诉等售后问题。</div>
+            </div>
+        </div>
+        <div class="table-wrap table-scroll">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>考生</th><th>标题</th><th>类型</th><th>状态</th><th>回复</th><th>提交时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="after-sales"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div id="modal" hidden></div>
+
+<script src="/assets/js/common/api.js?v=11"></script>
+<script src="/assets/js/common/module-nav.js?v=11"></script>
+<script>
+const user = getUser();
+if (!user || user.role !== 1) location.href = '/auth/admin-login.html';
+const el = id => document.getElementById(id);
+let records = [], plans = [], trades = [], levels = [], scores = [], certs = [], payments = [], announcements = [], afterSalesTickets = [], categorySummary = [];
+const STATUS_NAMES = ['待提交','待审核','审核通过','审核退回','已缴费','已确认','已取消'];
+
+async function load() {
+    try {
+        const [regs, planList, tradeList, levelList, scoreList, certList, st, scoreStat, payList, annList, tickets, catSummary] = await Promise.all([
+            API.registrations(), API.adminPlans(), API.trades(), API.levels(), API.allScores(),
+            API.allCertificates().catch(()=>[]),
+            API.statistics().catch(()=>({})),
+            API.scoreStats().catch(()=>({})),
+            API.payments().catch(()=>[]),
+            API.announcements().catch(()=>[]),
+            API.allAfterSalesTickets().catch(()=>[]),
+            API.registrationCategorySummary().catch(()=>[])
+        ]);
+        records = regs; plans = planList; trades = tradeList; levels = levelList; scores = scoreList; certs = certList; payments = payList; announcements = annList; afterSalesTickets = tickets; categorySummary = catSummary;
+
+        el('total').textContent = regs.length;
+        el('pending').textContent = regs.filter(r => r.status === 1).length;
+        el('paid').textContent = regs.filter(r => r.status === 4).length;
+        el('confirmed').textContent = regs.filter(r => r.status === 5).length;
+        el('fee-total').textContent = '¥' + Number(st.totalFee ?? 0).toFixed(2);
+        el('arranged').textContent = st.arranged ?? regs.filter(r => r.status === 5).length;
+        el('rejected').textContent = st.rejected ?? regs.filter(r => r.status === 3).length;
+        el('canceled').textContent = st.canceled ?? regs.filter(r => r.status === 6).length;
+
+        const published = Number(scoreStat.published ?? 0);
+        const passed = Number(scoreStat.passed ?? 0);
+        el('score-published').textContent = published;
+        el('pass-rate').textContent = published ? (passed / published * 100).toFixed(1) + '%（' + passed + '人）' : '0%';
+        el('avg-score').textContent = scoreStat.avgScore != null ? Number(scoreStat.avgScore).toFixed(1) : '0';
+
+        renderPlans();
+        renderRegs();
+        renderScores();
+        renderCerts();
+        renderPayments();
+        renderCharts(st);
+        renderSparklines();
+        initRegYearSelector();
+        renderRegChart();
+        renderCategorySummary();
+        renderAnnouncements();
+        renderAfterSales();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+let adminCharts = {};
+function destroyCharts() { Object.values(adminCharts).forEach(c => c && c.destroy()); adminCharts = {}; }
+const PALETTE = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+
+function renderCharts(st) {
+    destroyCharts();
+    const statusMap = {0:'待提交',1:'待审核',2:'审核通过',3:'审核退回',4:'已缴费',5:'已确认',6:'已取消'};
+    const statusData = (st.statusDist || []).map(s => ({ label: statusMap[s.status] || s.status, value: s.count }));
+    adminCharts.status = new Chart(document.getElementById('chart-status'), {
+        type: 'doughnut',
+        data: { labels: statusData.map(d=>d.label), datasets: [{ data: statusData.map(d=>d.value), backgroundColor: PALETTE, borderWidth: 0 }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } } }
+    });
+
+    const tradeData = (st.byTrade || []);
+    adminCharts.trade = new Chart(document.getElementById('chart-trade'), {
+        type: 'bar',
+        data: { labels: tradeData.map(d=>d.trade_name), datasets: [{ label: '报名人数', data: tradeData.map(d=>d.count), backgroundColor: '#3b82f6', borderRadius: 6 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    const levelData = (st.byLevel || []);
+    adminCharts.level = new Chart(document.getElementById('chart-level'), {
+        type: 'bar',
+        data: { labels: levelData.map(d=>d.level_name), datasets: [{ label: '报名人数', data: levelData.map(d=>d.count), backgroundColor: '#10b981', borderRadius: 6 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    const trendData = (st.monthlyTrend || []);
+    adminCharts.trend = new Chart(document.getElementById('chart-trend'), {
+        type: 'line',
+        data: { labels: trendData.map(d=>d.month), datasets: [{ label: '报名人数', data: trendData.map(d=>d.count), borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,.12)', fill: true, tension: .35, pointRadius: 4 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+}
+
+/* ===== 考试计划管理 ===== */
+function renderPlans() {
+    if (!plans.length) {
+        el('plans').innerHTML = emptyStateRow(7, '还没有考试计划', '先创建一门考试计划并发布，考生即可开始报名。',
+            '<button class="btn btn-primary" onclick="openPlanModal()">新建计划</button>');
+        return;
+    }
+    el('plans').innerHTML = plans.map(p => {
+        const statusTag = {0:'<span class="tag tag-muted">草稿</span>',1:'<span class="tag tag-success">已发布</span>',2:'<span class="tag tag-warning">已暂停</span>',3:'<span class="tag tag-danger">已关闭</span>'}[p.status] || '-';
+        const statusBtns = p.status === 0
+            ? `<button class="btn btn-success btn-sm" onclick="setPlanStatus(${p.id},1)">发布</button>`
+            : p.status === 1
+            ? `<button class="btn btn-sm" onclick="setPlanStatus(${p.id},2)">暂停</button> <button class="btn btn-danger btn-sm" onclick="setPlanStatus(${p.id},3)">关闭</button>`
+            : p.status === 2
+            ? `<button class="btn btn-success btn-sm" onclick="setPlanStatus(${p.id},1)">恢复</button>`
+            : '';
+        return `<tr>
+            <td>${escHtml(p.planName)}</td>
+            <td>${escHtml(p.tradeName)} / ${escHtml(p.levelName)}</td>
+            <td>${p.registerStartTime?.substring(0,10)} ~ ${p.registerEndTime?.substring(0,10)}</td>
+            <td>${p.currentCount} / ${p.maxCandidates || '不限'}</td>
+            <td>¥${p.fee}</td>
+            <td>${statusTag}</td>
+            <td>
+                <button class="btn btn-sm" onclick="openPlanModal(${p.id})">编辑</button>
+                ${statusBtns}
+                <button class="btn btn-danger btn-sm" onclick="delPlan(${p.id})">删除</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openPlanModal(id) {
+    const plan = id ? plans.find(p => p.id === id) : null;
+    const tradeOpts = trades.map(t => `<option value="${t.id}" ${plan && plan.tradeId===t.id?'selected':''}>${escHtml(t.trade_name)}</option>`).join('');
+    const levelOpts = levels.map(l => `<option value="${l.id}" ${plan && plan.levelId===l.id?'selected':''}>${escHtml(l.trade_name)} - ${escHtml(l.level_name)}</option>`).join('');
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>${plan?'编辑':'新增'}考试计划</h2>
+        <form class="form" id="plan-form">
+            <label>计划名称<input name="planName" required value="${escHtml(plan?.planName||'')}"></label>
+            <label>计划编号<input name="planCode" required value="${escHtml(plan?.planCode||'')}"></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <label>工种<select name="tradeId" required>${tradeOpts}</select></label>
+                <label>等级<select name="levelId" required>${levelOpts}</select></label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <label>报名开始<input name="registerStartTime" type="datetime-local" required value="${plan?plan.registerStartTime?.substring(0,16):''}"></label>
+                <label>报名结束<input name="registerEndTime" type="datetime-local" required value="${plan?plan.registerEndTime?.substring(0,16):''}"></label>
+            </div>
+            <label>考试时间<input name="examTime" type="datetime-local" required value="${plan?plan.examTime?.substring(0,16):''}"></label>
+            <label>考试地点<input name="examLocation" value="${escHtml(plan?.examLocation||'')}"></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <label>最大人数<input name="maxCandidates" type="number" min="0" required value="${plan?.maxCandidates||100}"></label>
+                <label>考试费用(元)<input name="fee" type="number" step="0.01" min="0" required value="${plan?.fee||0}"></label>
+            </div>
+            <label>报考条件<textarea name="conditionDesc" rows="3">${escHtml(plan?.conditionDesc||'')}</textarea></label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">${plan?'保存':'创建'}</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#plan-form').onsubmit = async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const data = {
+            planName: f.get('planName'), planCode: f.get('planCode'),
+            tradeId: parseInt(f.get('tradeId')), levelId: parseInt(f.get('levelId')),
+            registerStartTime: f.get('registerStartTime').replace('T',' ') + ':00',
+            registerEndTime: f.get('registerEndTime').replace('T',' ') + ':00',
+            examTime: f.get('examTime').replace('T',' ') + ':00',
+            examLocation: f.get('examLocation'),
+            maxCandidates: parseInt(f.get('maxCandidates')),
+            fee: parseFloat(f.get('fee')),
+            conditionDesc: f.get('conditionDesc')
+        };
+        try {
+            if (plan) await API.updatePlan(plan.id, data);
+            else await API.createPlan(data);
+            toast(plan?'已保存':'创建成功', 'success');
+            closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+async function setPlanStatus(id, status) {
+    const msg = {1:'发布',2:'暂停',3:'关闭'}[status];
+    if (!confirm(`确认${msg}该考试计划？`)) return;
+    try { await API.updatePlanStatus(id, status); toast('操作成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function delPlan(id) {
+    if (!confirm('确认删除该考试计划？此操作不可恢复。')) return;
+    try { await API.deletePlan(id); toast('已删除', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 报名审核 ===== */
+function renderRegs() {
+    const filter = el('filter-status').value;
+    // chips 与下拉框保持同一选中态
+    const chipsBox = el('reg-status-chips');
+    if (chipsBox) chipsBox.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', (c.dataset.status || '') === filter));
+    const list = filter ? records.filter(r => r.status === parseInt(filter)) : records;
+    if (!list.length) {
+        el('list').innerHTML = !records.length
+            ? emptyStateRow(7, '还没有报名数据', '先发布考试计划，考生报名后会在这里进入审核队列。',
+                '<button class="btn btn-primary" onclick="openPlanModal()">新建考试计划</button>')
+            : emptyStateRow(7, '该状态下暂无报名', '试试切换到其他状态，或点击查看全部。',
+                '<button class="btn" onclick="resetRegFilter()">查看全部状态</button>');
+        return;
+    }
+    el('list').innerHTML = list.map(r => {
+        const actions = r.status === 1
+            ? `<button class="btn btn-success btn-sm" onclick="approve(${r.id})">初审通过</button>
+               <button class="btn btn-danger btn-sm" onclick="reject(${r.id})">退回</button>`
+            : r.status === 2
+            ? `<button class="btn btn-sm" onclick="confirmPay(${r.id})">确认缴费</button>`
+            : r.status === 4
+            ? `<button class="btn btn-success btn-sm" onclick="secondAudit(${r.id})">复审通过</button>
+               <button class="btn btn-danger btn-sm" onclick="secondReject(${r.id})">复审退回</button>`
+            : '<span class="meta">已处理</span>';
+        return `<tr>
+            <td><a href="#" onclick="showRegDetail(${r.id});return false">${escHtml(r.realName)}</a></td>
+            <td>${escHtml(r.idCard)}</td>
+            <td>${escHtml(r.planName)}</td>
+            <td>${escHtml(r.tradeName)} / ${escHtml(r.levelName)}</td>
+            <td>${escHtml(r.education||'-')} / ${r.workYears??'-'}年</td>
+            <td class="status status-${r.status}">${STATUS_NAMES[r.status]}</td>
+            <td>${actions}</td>
+        </tr>`;
+    }).join('');
+}
+
+function resetRegFilter() {
+    el('filter-status').value = '';
+    renderRegs();
+}
+
+function showRegDetail(id) {
+    const r = records.find(x => x.id === id);
+    if (!r) return;
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>报名详情</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px">
+            <div><b>考生姓名：</b>${escHtml(r.realName)}</div>
+            <div><b>手机号：</b>${escHtml(r.phone||'-')}</div>
+            <div><b>身份证号：</b>${escHtml(r.idCard)}</div>
+            <div><b>邮箱：</b>${escHtml(r.email||'-')}</div>
+            <div><b>工作单位：</b>${escHtml(r.workUnit||'-')}</div>
+            <div><b>学历：</b>${escHtml(r.education||'-')}</div>
+            <div><b>工作年限：</b>${r.workYears??'-'} 年</div>
+            <div><b>紧急联系人：</b>${escHtml(r.emergencyContact||'-')}</div>
+            <div><b>紧急联系电话：</b>${escHtml(r.emergencyPhone||'-')}</div>
+            <div><b>考试计划：</b>${escHtml(r.planName)}</div>
+            <div><b>工种/等级：</b>${escHtml(r.tradeName)} / ${escHtml(r.levelName)}</div>
+            <div><b>报名费用：</b>¥${r.fee}</div>
+            <div><b>当前状态：</b><span class="status status-${r.status}">${STATUS_NAMES[r.status]}</span></div>
+            <div style="grid-column:1/-1"><b>报名材料：</b><span id="mat-list">加载中...</span></div>
+            ${r.rejectReason?`<div style="grid-column:1/-1"><b>退回原因：</b>${escHtml(r.rejectReason)}</div>`:''}
+            <div style="grid-column:1/-1;margin-top:4px"><b>审核进度：</b><div id="audit-timeline" style="margin-top:8px">加载中...</div></div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn" onclick="closeModal()">关闭</button>
+        </div>
+    </div></div>`;
+    // 加载材料
+    API.getMaterials(r.id).then(mats => {
+        document.getElementById('mat-list').innerHTML = mats.length
+            ? mats.map(m => `📄 ${escHtml(m.file_name)} (${(m.file_size/1024).toFixed(1)}KB)`).join('、')
+            : '暂无材料';
+    }).catch(() => { document.getElementById('mat-list').textContent = '暂无材料'; });
+    // 加载审核记录时间线
+    API.timeline(r.id).then(recs => {
+        const box = document.getElementById('audit-timeline');
+        if (!box) return;
+        if (!recs.length) { box.innerHTML = '<span class="meta">暂无审核记录</span>'; return; }
+        const lv = {1:'初审',2:'复审'}, rt = {1:'通过',2:'退回'};
+        box.innerHTML = recs.map(a => `
+            <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+                <span class="tag">${lv[a.audit_level]||'审核'}</span>
+                <span><b>${rt[a.audit_result]||'已处理'}</b>
+                <span class="meta">　${escHtml(a.auditor_name||'-')}　${(a.created_at||'').substring(0,16).replace('T',' ')}${a.reason?'　意见：'+escHtml(a.reason):''}</span></span>
+            </div>`).join('');
+    }).catch(() => { const b=document.getElementById('audit-timeline'); if(b) b.textContent='暂无审核记录'; });
+}
+
+async function approve(id) {
+    try { await API.audit(id, true, '', false); toast('初审通过', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function reject(id) {
+    const reason = prompt('请输入退回原因：');
+    if (!reason) return;
+    try { await API.audit(id, false, reason, false); toast('已退回', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function confirmPay(id) {
+    if (!confirm('确认该考生已缴费？')) return;
+    try { await API.confirmPay(id); toast('缴费已确认', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function secondAudit(id) {
+    try { await API.audit(id, true, '', true); toast('复审通过，已确认', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function secondReject(id) {
+    const reason = prompt('请输入复审退回原因：');
+    if (!reason) return;
+    try { await API.audit(id, false, reason, true); toast('已退回', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function batchApprove() {
+    const pending = records.filter(r => r.status === 1);
+    if (!pending.length) { toast('没有待审核的报名', 'warning'); return; }
+    if (!confirm(`确认批量通过 ${pending.length} 条待审核报名？`)) return;
+    try {
+        for (const r of pending) await API.audit(r.id, true, '', false);
+        toast(`批量通过 ${pending.length} 条`, 'success');
+        load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 成绩管理 ===== */
+function renderScores() {
+    const confirmed = records.filter(r => r.status === 5 || r.status === 4);
+    el('scores').innerHTML = confirmed.map(r => {
+        const s = scores.find(x => x.registrationId === r.id);
+        const isPublished = s && s.published === 1;
+        const statusTag = s ? (isPublished ? '<span class="tag tag-success">已发布</span>' : '<span class="tag tag-warning">待发布</span>') : '<span class="tag tag-muted">未录入</span>';
+        const actions = s
+            ? (isPublished ? '<span class="meta">已发布</span>' : `<button class="btn btn-success btn-sm" onclick="publishScore(${r.id})">发布成绩</button>`)
+            : `<button class="btn btn-primary btn-sm" onclick="openScoreModal(${r.id})">录入成绩</button>`;
+        return `<tr>
+            <td>${escHtml(r.realName)}</td>
+            <td>${escHtml(r.planName)}</td>
+            <td>${escHtml(r.tradeName)} / ${escHtml(r.levelName)}</td>
+            <td>${s?.theoryScore ?? '-'}</td>
+            <td>${s?.practiceScore ?? '-'}</td>
+            <td>${statusTag}</td>
+            <td>${actions}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无待录入成绩的考生</td></tr>';
+}
+
+function openScoreModal(regId) {
+    const r = records.find(x => x.id === regId);
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px">
+        <h2>录入成绩 - ${escHtml(r.realName)}</h2>
+        <form class="form" id="score-form">
+            <label>理论成绩<input name="theory" type="number" step="0.1" min="0" max="100" required></label>
+            <label>实操成绩<input name="practice" type="number" step="0.1" min="0" max="100" required></label>
+            <div style="display:flex;gap:8px">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.querySelector('#score-form').onsubmit = async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        try {
+            await API.saveScore({ registrationId: regId, theory: parseFloat(f.get('theory')), practice: parseFloat(f.get('practice')) });
+            toast('成绩已保存', 'success');
+            closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+async function publishScore(regId) {
+    if (!confirm('确认发布该考生成绩？发布后考生可查看。')) return;
+    try { await API.publishScore(regId); toast('成绩已发布', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 证书管理（成绩合格发布后自动生成） ===== */
+function renderCerts() {
+    el('certs').innerHTML = certs.length ? certs.map(c => {
+        const revoked = c.status === 2;
+        return `<tr>
+            <td>${escHtml(c.real_name)}</td>
+            <td>${escHtml(c.plan_name || '-')}</td>
+            <td>${escHtml(c.trade_name)} / ${escHtml(c.level_name)}</td>
+            <td>${escHtml(c.certificate_no)}</td>
+            <td>${(c.issued_at || '').substring(0,10)}</td>
+            <td>${revoked ? '<span class="tag tag-danger">已作废</span>' : '<span class="tag tag-success">已发放</span>'}</td>
+            <td>${revoked ? '<span class="meta">-</span>' : `<button class="btn btn-danger btn-sm" onclick="revokeCert(${c.id})">作废证书</button>`}</td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无证书，成绩合格并发布后将自动生成</td></tr>';
+}
+
+async function revokeCert(id) {
+    if (!confirm('确认作废该证书？作废后公开查验将显示为已作废状态。')) return;
+    try { await API.revokeCertificate(id); toast('证书已作废', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 缴费流水 ===== */
+function renderPayments() {
+    const methodText = { wechat: '微信支付', alipay: '支付宝', cash: '线下确认' };
+    const statusTag = { 0: '<span class="tag tag-warning">待支付</span>', 1: '<span class="tag tag-success">已支付</span>', 2: '<span class="tag tag-danger">已退款</span>' };
+    el('payments').innerHTML = payments.length ? payments.map(p => `<tr>
+        <td>${escHtml(p.trade_no || '-')}</td>
+        <td>${escHtml(p.real_name || '')}</td>
+        <td>${escHtml(p.plan_name || '')}</td>
+        <td>¥${p.amount}</td>
+        <td>${escHtml(methodText[p.pay_method] || p.pay_method || '-')}</td>
+        <td>${statusTag[p.pay_status] || p.pay_status}</td>
+        <td>${(p.paid_at || '').toString().substring(0,16).replace('T',' ')}</td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">暂无缴费记录</td></tr>';
+}
+
+function closeModal() { el('modal').hidden = true; }
+
+/* ===== 用户注册数量柱形图 ===== */
+let regYearData = {};
+function initRegYearSelector() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const years = [currentYear, currentYear - 1, currentYear - 2];
+    el('reg-year').innerHTML = years.map(y => `<option value="${y}">${y}年</option>`).join('');
+    regYearData = {};
+}
+
+async function renderRegChart() {
+    const year = parseInt(el('reg-year').value);
+    if (!regYearData[year]) {
+        try { regYearData[year] = await API.userRegistrationMonthly(year); }
+        catch (e) { regYearData[year] = []; }
+    }
+    const data = regYearData[year] || [];
+    const months = Array.from({length: 12}, (_, i) => `${year}-${String(i+1).padStart(2,'0')}`);
+    const counts = months.map(m => {
+        const item = data.find(d => d.month === m);
+        return item ? item.count : 0;
+    });
+    if (adminCharts.regCount) adminCharts.regCount.destroy();
+    adminCharts.regCount = new Chart(document.getElementById('chart-reg-count'), {
+        type: 'bar',
+        data: {
+            labels: months.map(m => m.substring(5) + '月'),
+            datasets: [{
+                label: year + '年注册人数',
+                data: counts,
+                backgroundColor: '#3b82f6',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+/* ===== 报考分类汇总 ===== */
+function renderCategorySummary() {
+    const total = categorySummary.reduce((s, c) => s + (c.total || 0), 0);
+    el('category-summary').innerHTML = categorySummary.length ? categorySummary.map(c => {
+        const pct = total ? ((c.total / total) * 100).toFixed(1) : 0;
+        return `<tr>
+            <td><b>${c.trade}</b></td>
+            <td>${c.level}</td>
+            <td>${c.total}</td>
+            <td style="color:var(--success)">${c.passed || 0}</td>
+            <td style="color:var(--danger)">${c.rejected || 0}</td>
+            <td style="color:var(--muted)">${c.canceled || 0}</td>
+            <td>¥${Number(c.total_fee || 0).toFixed(2)}</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                    <div style="flex:1;height:8px;background:var(--surface-soft);border-radius:4px;overflow:hidden">
+                        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px"></div>
+                    </div>
+                    <span class="meta" style="min-width:42px">${pct}%</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">暂无数据</td></tr>';
+
+    // 分类汇总柱状图
+    if (adminCharts.category) adminCharts.category.destroy();
+    adminCharts.category = new Chart(document.getElementById('chart-category'), {
+        type: 'bar',
+        data: {
+            labels: categorySummary.map(c => `${c.trade}-${c.level}`),
+            datasets: [
+                { label: '报名总数', data: categorySummary.map(c => c.total), backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: '通过', data: categorySummary.map(c => c.passed || 0), backgroundColor: '#10b981', borderRadius: 4 },
+                { label: '退回', data: categorySummary.map(c => c.rejected || 0), backgroundColor: '#ef4444', borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+function exportCategoryCSV() {
+    if (!categorySummary.length) { toast('暂无数据', 'warning'); return; }
+    const header = ['工种', '等级', '报名总数', '审核通过', '审核退回', '已取消', '收费总额'];
+    // CSV 注入防护：以 = + - @ 开头的单元格前置单引号；统一加双引号并转义内部引号
+    const csvCell = v => {
+        let s = String(v == null ? '' : v);
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const rows = categorySummary.map(c => [c.trade, c.level, c.total, c.passed || 0, c.rejected || 0, c.canceled || 0, c.total_fee || 0]);
+    const csv = '﻿' + [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '报考分类汇总.csv';
+    a.click();
+}
+
+/* ===== 公告管理 ===== */
+function renderAnnouncements() {
+    el('announcements').innerHTML = announcements.length ? announcements.map(a => `<tr>
+        <td>${escHtml(a.title)}</td>
+        <td class="meta">${escHtml((a.content || '').substring(0,30))}${a.content && a.content.length > 30 ? '...' : ''}</td>
+        <td>${a.is_top === 1 ? '<span class="tag tag-warning">置顶</span>' : '-'}</td>
+        <td><span class="tag tag-${a.status === 1 ? 'success' : 'muted'}">${a.status === 1 ? '已发布' : '已下线'}</span></td>
+        <td>${(a.created_at || '').substring(0,10)}</td>
+        <td>
+            <button class="btn btn-sm" onclick="toggleAnnouncement(${a.id}, ${a.status === 1 ? 0 : 1})">${a.status === 1 ? '下线' : '发布'}</button>
+            <button class="btn btn-danger btn-sm" onclick="delAnnouncement(${a.id})">删除</button>
+        </td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">暂无公告</td></tr>';
+}
+
+function openAnnouncementModal() {
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:520px">
+        <div class="eyebrow">NEW ANNOUNCEMENT</div>
+        <h2>新增公告</h2>
+        <form class="form" id="announce-form">
+            <div class="form-group">
+                <label class="form-label">公告标题 *</label>
+                <input id="ann-title" required placeholder="请输入公告标题">
+            </div>
+            <div class="form-group">
+                <label class="form-label">公告内容 *</label>
+                <textarea id="ann-content" rows="5" required placeholder="请输入公告内容"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label"><input type="checkbox" id="ann-top" style="width:auto;margin-right:6px">置顶显示</label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">发布公告</button>
+                <button type="button" class="btn" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    document.getElementById('announce-form').onsubmit = async e => {
+        e.preventDefault();
+        try {
+            await API.createAnnouncement({
+                title: el('ann-title').value.trim(),
+                content: el('ann-content').value.trim(),
+                isTop: el('ann-top').checked ? 1 : 0
+            });
+            toast('公告发布成功', 'success');
+            closeModal(); load();
+        } catch (err) { toast(err.message, 'error'); }
+    };
+}
+
+async function toggleAnnouncement(id, status) {
+    try { await API.updateAnnouncementStatus(id, status); toast('操作成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function delAnnouncement(id) {
+    if (!confirm('确认删除该公告？此操作不可恢复。')) return;
+    try { await API.deleteAnnouncement(id); toast('已删除', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+function openImportAnnouncement() {
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px">
+        <div class="eyebrow">IMPORT ANNOUNCEMENTS</div>
+        <h2>批量导入公告</h2>
+        <p class="meta" style="margin:6px 0 14px">每行一条公告，格式：标题|内容|是否置顶(0/1)</p>
+        <textarea id="import-text" rows="10" style="width:100%;font-family:monospace;font-size:13px" placeholder="系统维护通知|系统将于本周六凌晨维护，期间暂停服务|1&#10;报名截止提醒|2026年11月考试报名即将截止，请尽快报名|0"></textarea>
+        <div style="margin-top:14px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="doImportAnnouncement()">开始导入</button>
+            <button class="btn" onclick="closeModal()">取消</button>
+        </div>
+    </div></div>`;
+}
+
+async function doImportAnnouncement() {
+    const text = document.getElementById('import-text').value.trim();
+    if (!text) { toast('请输入公告内容', 'error'); return; }
+    const items = text.split('\n').map(line => {
+        const parts = line.split('|');
+        return { title: parts[0]?.trim(), content: parts[1]?.trim() || '', isTop: parseInt(parts[2]?.trim() || '0') };
+    }).filter(i => i.title);
+    if (!items.length) { toast('未解析到有效公告', 'error'); return; }
+    try {
+        const res = await API.importAnnouncements(items);
+        toast(`成功导入 ${res.imported} 条公告`, 'success');
+        closeModal(); load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 售后服务工单 ===== */
+const TICKET_STATUS = { 0: '待处理', 1: '处理中', 2: '已解决', 3: '已关闭' };
+const TICKET_TYPE = { refund: '退款', consult: '咨询', complaint: '投诉', other: '其他' };
+function renderAfterSales() {
+    el('after-sales').innerHTML = afterSalesTickets.length ? afterSalesTickets.map(t => {
+        const statusClass = t.status === 0 ? 'tag-warning' : t.status === 1 ? 'tag-primary' : t.status === 2 ? 'tag-success' : 'tag-muted';
+        return `<tr>
+            <td>${t.id}</td>
+            <td>${escHtml(t.user_name || '-')}</td>
+            <td><a href="#" onclick="showTicketDetail(${t.id});return false">${escHtml(t.title)}</a></td>
+            <td><span class="tag">${escHtml(TICKET_TYPE[t.type] || t.type || '其他')}</span></td>
+            <td><span class="tag ${statusClass}">${TICKET_STATUS[t.status] || t.status}</span></td>
+            <td class="meta">${t.reply ? '已回复' : '-'}</td>
+            <td>${(t.created_at || '').substring(0,16).replace('T',' ')}</td>
+            <td>
+                ${t.status < 2 ? `<button class="btn btn-sm btn-success" onclick="openReplyModal(${t.id})">回复</button>` : ''}
+                ${t.status === 2 ? `<button class="btn btn-sm" onclick="closeTicket(${t.id})">关闭</button>` : ''}
+            </td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">暂无售后工单</td></tr>';
+}
+
+function showTicketDetail(id) {
+    const t = afterSalesTickets.find(x => x.id === id);
+    if (!t) return;
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:520px">
+        <div class="eyebrow">TICKET DETAIL</div>
+        <h2>${escHtml(t.title)}</h2>
+        <div class="meta" style="margin-bottom:12px">
+            考生：${escHtml(t.user_name || '-')}　|　类型：${escHtml(TICKET_TYPE[t.type] || t.type || '其他')}　|　状态：${TICKET_STATUS[t.status] || '未知'}
+        </div>
+        <div style="padding:12px;background:var(--surface-soft);border-radius:8px;margin-bottom:12px">
+            <b>问题描述：</b><br><span style="white-space:pre-wrap">${escHtml(t.content)}</span>
+        </div>
+        ${t.reply ? `<div style="padding:12px;background:#ecfdf5;border-radius:8px;border-left:3px solid #10b981">
+            <b>官方回复：</b><br><span style="white-space:pre-wrap">${escHtml(t.reply)}</span>
+            <div class="meta" style="margin-top:6px">回复时间：${(t.replied_at || '').substring(0,16).replace('T',' ')}</div>
+        </div>` : ''}
+        <div style="margin-top:14px;display:flex;gap:8px">
+            ${t.status < 2 ? `<button class="btn btn-success" onclick="openReplyModal(${t.id})">回复工单</button>` : ''}
+            ${t.status === 2 ? `<button class="btn" onclick="closeTicket(${t.id})">关闭工单</button>` : ''}
+            <button class="btn" onclick="closeModal()">关闭</button>
+        </div>
+    </div></div>`;
+}
+
+function openReplyModal(id) {
+    el('modal').hidden = false;
+    el('modal').innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:480px">
+        <div class="eyebrow">REPLY TICKET</div>
+        <h2>回复售后工单 #${id}</h2>
+        <div class="form-group">
+            <label class="form-label">回复内容 *</label>
+            <textarea id="reply-content" rows="5" required placeholder="请输入回复内容"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" onclick="submitReply(${id})">提交回复</button>
+            <button class="btn" onclick="closeModal()">取消</button>
+        </div>
+    </div></div>`;
+}
+
+async function submitReply(id) {
+    const reply = document.getElementById('reply-content').value.trim();
+    if (!reply) { toast('请输入回复内容', 'error'); return; }
+    try {
+        await API.replyAfterSalesTicket(id, reply);
+        toast('回复成功', 'success');
+        closeModal(); load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function closeTicket(id) {
+    if (!confirm('确认关闭该工单？')) return;
+    try { await API.updateAfterSalesStatus(id, 3); toast('工单已关闭', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+/* ===== 表格空状态引导（内联 SVG 线条插画 + 引导文案 + 主按钮） ===== */
+function emptyStateRow(colspan, title, desc, btnHtml) {
+    return '<tr><td colspan="' + colspan + '" style="padding:0">' +
+        '<div class="empty-state">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3.5V2.5h6v1"/>' +
+        '<path d="M8.5 9.5h7M8.5 13h7M8.5 16.5h4"/>' +
+        '</svg>' +
+        '<div class="empty-title">' + escHtml(title) + '</div>' +
+        '<div class="empty-desc">' + escHtml(desc) + '</div>' +
+        (btnHtml || '') +
+        '</div></td></tr>';
+}
+
+/* ===== 统计卡迷你趋势图（sparkline，theme.css 提供 .sparkline 容器） ===== */
+// 按 dateKey 聚合为按日序列：filterFn 过滤、valueFn 累加（默认计数）；跨度超 30 天仅取最近 30 天
+function dailySeries(list, filterFn, dateKey, valueFn) {
+    const val = valueFn || (() => 1);
+    const buckets = {};
+    (list || []).forEach(r => {
+        if (filterFn && !filterFn(r)) return;
+        const t = String(r[dateKey] || '').substring(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return;
+        buckets[t] = (buckets[t] || 0) + (Number(val(r)) || 0);
+    });
+    const keys = Object.keys(buckets).sort();
+    if (!keys.length) return [];
+    let start = new Date(keys[0] + 'T00:00:00');
+    const end = new Date(keys[keys.length - 1] + 'T00:00:00');
+    if ((end - start) / 86400000 > 29) { start = new Date(end); start.setDate(start.getDate() - 29); }
+    const out = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        out.push(Math.round((buckets[k] || 0) * 100) / 100);
+    }
+    return out;
+}
+
+// 用 chart.js 画一条 --primary 色平滑线：无渐变填充/图例/坐标轴；数据不足 2 点隐藏画布显示"暂无趋势"
+function drawSparkline(canvasId, points) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const slot = canvas.closest('.spark-slot');
+    const emptyTip = slot ? slot.querySelector('.spark-empty') : null;
+    const pts = (Array.isArray(points) ? points : []).map(v => Number(v) || 0);
+    if (pts.length < 2) {
+        canvas.style.display = 'none';
+        if (emptyTip) emptyTip.style.display = '';
+        return;
+    }
+    canvas.style.display = '';
+    if (emptyTip) emptyTip.style.display = 'none';
+    if (adminCharts[canvasId]) adminCharts[canvasId].destroy();
+    const primary = (getComputedStyle(document.documentElement).getPropertyValue('--primary') || '').trim() || '#0071e3';
+    adminCharts[canvasId] = new Chart(canvas, {
+        type: 'line',
+        data: { labels: pts.map((_, i) => i + 1), datasets: [{ data: pts, borderColor: primary, borderWidth: 2, pointRadius: 0, pointHitRadius: 0, tension: .35, fill: false }] },
+        options: { responsive: false, animation: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, beginAtZero: true } } }
+    });
+}
+
+// 数据源：页面已加载的报名/缴费列表按日聚合（按日报名量 / 按日收费额）
+function renderSparklines() {
+    drawSparkline('spark-total', dailySeries(records, null, 'submittedAt'));
+    drawSparkline('spark-pending', dailySeries(records, r => r.status === 1, 'submittedAt'));
+    drawSparkline('spark-paid', dailySeries(records, r => r.status === 4, 'submittedAt'));
+    drawSparkline('spark-confirmed', dailySeries(records, r => r.status === 5, 'submittedAt'));
+    drawSparkline('spark-fee', dailySeries(payments, null, 'paid_at', p => p.amount));
+    drawSparkline('spark-arranged', dailySeries(records, r => r.roomCode, 'submittedAt'));
+    drawSparkline('spark-rejected', dailySeries(records, r => r.status === 3, 'submittedAt'));
+    drawSparkline('spark-canceled', dailySeries(records, r => r.status === 6, 'submittedAt'));
+}
+
+/* ===== 状态 chips 筛选（与下拉框双向同步，纯前端过滤） ===== */
+(function initRegChips() {
+    const box = el('reg-status-chips');
+    if (!box) return;
+    box.addEventListener('click', e => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        el('filter-status').value = chip.dataset.status || '';
+        renderRegs();
+    });
+})();
+
+/* ===== Ctrl+K 命令面板：跳转各模块 / 新建计划 / 刷新数据 ===== */
+function initCmdk() {
+    if (typeof window.cmdk !== 'function') return;
+    const jump = (id, label) => ({
+        label: '跳转：' + label, hint: '模块',
+        action: () => { const t = document.getElementById(id); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+    window.cmdk([
+        jump('stats', '数据概览'),
+        jump('m-reg', '用户注册统计'),
+        jump('m-category', '报考分类汇总'),
+        jump('m-plans', '考试计划管理'),
+        jump('m-audit', '资格审核'),
+        jump('m-scores', '成绩管理'),
+        jump('m-certs', '证书发放'),
+        jump('m-payments', '缴费流水'),
+        jump('m-notices', '公告管理'),
+        jump('m-tickets', '售后工单'),
+        { label: '新建考试计划', hint: '动作', action: () => openPlanModal() },
+        { label: '刷新数据', hint: '动作', action: () => { toast('正在刷新数据…'); load(); } }
+    ]);
+}
+initCmdk();
+
+load();
+
+/* ===== 滚动进度条 + 回到顶部 ===== */
+(function(){
+  const bar = document.getElementById('scroll-progress');
+  const btn = document.getElementById('back-to-top');
+  function onScroll() {
+    const st = window.scrollY || document.documentElement.scrollTop;
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = h > 0 ? (st / h) * 100 : 0;
+    if (bar) bar.style.width = pct + '%';
+    if (btn) btn.classList.toggle('visible', st > 400);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  if (btn) btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+</body>
+</html>

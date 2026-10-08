@@ -1,0 +1,13 @@
+USE skill_exam;
+ALTER TABLE registration ADD CONSTRAINT fk_reg_user FOREIGN KEY (user_id) REFERENCES sys_user(id);
+ALTER TABLE registration ADD CONSTRAINT fk_reg_plan FOREIGN KEY (plan_id) REFERENCES exam_plan(id);
+ALTER TABLE room_arrangement ADD CONSTRAINT fk_arr_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+ALTER TABLE room_arrangement ADD CONSTRAINT fk_arr_room FOREIGN KEY (room_id) REFERENCES exam_room(id);
+ALTER TABLE exam_signin ADD CONSTRAINT fk_signin_arr FOREIGN KEY (arrangement_id) REFERENCES room_arrangement(id) ON DELETE CASCADE;
+ALTER TABLE score ADD CONSTRAINT fk_score_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+ALTER TABLE certificate ADD CONSTRAINT fk_cert_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+ALTER TABLE registration_material ADD CONSTRAINT fk_material_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+ALTER TABLE payment_record ADD CONSTRAINT fk_payment_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+ALTER TABLE after_sales_ticket ADD CONSTRAINT fk_ticket_user FOREIGN KEY (user_id) REFERENCES sys_user(id);
+ALTER TABLE after_sales_ticket ADD CONSTRAINT fk_ticket_reg FOREIGN KEY (registration_id) REFERENCES registration(id);
+SELECT COUNT(*) AS fk_count FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA='skill_exam';

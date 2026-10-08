@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: vocational-exam
+  datasource:
+    # 复制本文件为 application.yml 后填入你自己的数据库连接信息
+    url: jdbc:mysql://localhost:3306/skill_exam?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: root
+    # 通过环境变量 DB_PASSWORD 注入，勿把真实密码写入仓库
+    password: ${DB_PASSWORD:请改成你的数据库密码}
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+  mail:
+    host: smtp.qq.com
+    port: 465
+    protocol: smtp
+    default-encoding: UTF-8
+    username: 你的QQ邮箱@qq.com
+    # 通过环境变量 MAIL_PASSWORD 注入 QQ邮箱 SMTP 授权码（非登录密码），勿写入仓库
+    password: ${MAIL_PASSWORD:请改成你的SMTP授权码}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+app:
+  jwt:
+    # 生产环境必须通过环境变量 APP_JWT_SECRET 注入固定密钥
+    secret: ${APP_JWT_SECRET:}
+    expire-hours: 12
+  email:
+    verify-code-ttl-minutes: 5

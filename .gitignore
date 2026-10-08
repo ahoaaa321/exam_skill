@@ -1,0 +1,51 @@
+HELP.md
+target/
+out/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### 含真实凭证的本地配置（仅提交 application.example.yml 模板） ###
+src/main/resources/application.yml
+
+### 与本考试系统无关的其它项目/课程文件 ###
+life_stock/
+life_stock_java/
+*.ipynb
+gen_game_survey_paper.py
+第三周_数据探索_实验报告_杨皓智.docx
+第三周_数据探索_实验报告_杨皓智.pdf
+
+### 本地运行/测试临时产物 ###
+logs-*.txt
+
+### 其它无关项目的报告 ###
+reports/游戏化股票小程序-自检自修复优化报告.md

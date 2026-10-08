@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: vocational-exam
+  datasource:
+    url: jdbc:mysql://localhost:3306/skill_exam?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      continue-on-error: true
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: 3390709428@qq.com
+    password: mfhggtykvdyhcjcg
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+            trust: smtp.qq.com
+          starttls:
+            enable: true
+            required: true
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:}
+    expire-hours: 12
+  email:
+    verify-code-ttl-minutes: 5
+
+server:
+  port: 8080

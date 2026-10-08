@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>考生个人中心 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=9">
+    <style>
+        #modal:not([hidden]) {
+            position: fixed; inset: 0; background: rgba(15,23,42,.5);
+            backdrop-filter: blur(4px); display: grid; place-items: center;
+            z-index: 999; animation: fade-in .2s ease;
+        }
+        #modal .modal { width: min(520px, calc(100% - 32px)); background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.3); animation: modal-in .3s cubic-bezier(.2,.8,.2,1); }
+        #modal .panel { padding: 24px; }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modal-in { from { opacity: 0; transform: translateY(20px) scale(.97); } to { opacity: 1; transform: none; } }
+        /* 消息未读徽章：红底白字小圆，0 时由 JS 隐藏 */
+        .side-nav a[href="#messages"] { position: relative; }
+        .nav-badge {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+            background: #e5484d; color: #fff; font-size: 11px; font-weight: 700;
+            display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+            box-shadow: 0 0 0 2px var(--surface, #fff);
+        }
+        /* 待办卡内环形进度尺寸 */
+        #todo-card .progress-ring { --ring-size: 96px; flex-shrink: 0; }
+        #todo-card { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 18px; }
+        /* display 规则会覆盖 [hidden]，需显式恢复隐藏能力 */
+        #todo-card[hidden] { display: none; }
+        .nav-badge[hidden] { display: none; }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>考生中心</strong></a>
+    <nav>
+        <a href="/">报名首页</a>
+        <a href="#" onclick="logout();return false">退出登录</a>
+    </nav>
+</header>
+
+<div class="scroll-progress" id="scroll-progress"></div>
+<button class="back-to-top" id="back-to-top" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<main class="layout">
+    <section class="hero">
+        <div>
+            <div class="eyebrow">CANDIDATE SERVICE CENTER</div>
+            <h1 id="welcome">你好，考生</h1>
+            <p>欢迎进入个人中心。请关注待办事项，按流程完成报名、缴费和考试准备。</p>
+        </div>
+        <div class="hero-code">身份状态：已认证<br>未读消息：<span id="unread">0</span><br>服务状态：正常</div>
+        </section>
+
+    <!-- 智能"下一步"待办卡：按最新一条报名状态给出下一步指引 -->
+    <section id="todo-card" class="todo-cta" hidden>
+        <div style="flex:1;min-width:260px">
+            <div class="eyebrow">NEXT STEP</div>
+            <div id="todo-title" style="font-size:17px;font-weight:700;margin:6px 0 4px"></div>
+            <div id="todo-desc" class="meta"></div>
+            <div id="todo-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+        <div class="progress-ring" id="todo-ring" role="img" aria-label="报名流程进度">
+            <span class="progress-ring-label" id="todo-ring-label">第 1/7 步</span>
+        </div>
+    </section>
+
+    <div id="recovery-banner" class="recovery-banner" hidden>
+        <div class="recovery-banner-inner">
+            <span class="recovery-banner-ico">🔑</span>
+            <div class="recovery-banner-text">
+                <b>请保存您的账号恢复令牌</b>
+                <span>用于忘记密码时找回账号，仅展示这一次：<code id="recovery-token-code"></code></span>
+            </div>
+            <button class="btn btn-sm" id="recovery-copy-btn" type="button">复制</button>
+            <button class="recovery-banner-close" id="recovery-close-btn" type="button" aria-label="关闭">✕</button>
+        </div>
+    </div>
+
+    <div class="candidate-layout">
+        <aside class="side-nav">
+            <a class="active" href="#overview">个人首页</a>
+            <a href="#application">我的报名</a>
+            <a href="#material">报名材料</a>
+            <a href="#ticket">准考证打印</a>
+            <a href="#signin">考试签到</a>
+            <a href="#scores">成绩查询</a>
+            <a href="#certificate">我的证书</a>
+            <a href="#after-sales">售后服务</a>
+            <a href="#messages">我的消息<span class="nav-badge" id="nav-unread" hidden>0</span></a>
+            <a href="#profile">个人信息</a>
+        </aside>
+
+        <section>
+            <section id="overview" class="grid">
+                <div class="panel span-4">
+                    <div class="label">我的报名</div>
+                    <div class="metric" id="reg-count">0</div>
+                    <a class="btn btn-primary" href="#application" style="display:inline-block;margin-top:12px">进入报名管理</a>
+                </div>
+                <div class="panel span-4">
+                    <div class="label">待办事项</div>
+                    <div class="metric" id="todo">0</div>
+                    <div class="label">请按状态完成后续操作</div>
+                </div>
+                <div class="panel span-4">
+                    <div class="label">未读消息</div>
+                    <div class="metric" id="message-count">0</div>
+                    <a class="btn" href="#messages" style="display:inline-block;margin-top:12px">查看消息</a>
+                </div>
+            </section>
+
+            <!-- 快捷操作 -->
+            <section class="panel" style="margin-top:18px">
+                <div class="eyebrow">QUICK ACTIONS</div>
+                <h2>快捷操作</h2>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px">
+                    <button class="quick-action" onclick="location.href='/'">
+                        <div class="qa-icon">📋</div><div class="qa-text">报名新考试</div>
+                    </button>
+                    <button class="quick-action" onclick="location.hash='#application'">
+                        <div class="qa-icon">📝</div><div class="qa-text">我的报名</div>
+                    </button>
+                    <button class="quick-action" onclick="location.hash='#ticket'">
+                        <div class="qa-icon">🎫</div><div class="qa-text">准考证打印</div>
+                    </button>
+                    <button class="quick-action" onclick="location.hash='#scores'">
+                        <div class="qa-icon">📊</div><div class="qa-text">成绩查询</div>
+                    </button>
+                    <button class="quick-action" onclick="location.hash='#messages'">
+                        <div class="qa-icon">💬</div><div class="qa-text">我的消息</div>
+                    </button>
+                    <button class="quick-action" onclick="location.hash='#profile'">
+                        <div class="qa-icon">⚙️</div><div class="qa-text">个人设置</div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 推荐考试 -->
+            <section class="panel" style="margin-top:18px">
+                <div class="toolbar">
+                    <div>
+                        <div class="eyebrow">RECOMMENDED</div>
+                        <h2>推荐考试</h2>
+                    </div>
+                    <a class="btn" href="/">查看全部</a>
+                </div>
+                <div id="recommend-list" class="cards"></div>
+            </section>
+
+            <section id="application" class="panel" style="margin-top:18px">
+                <div class="toolbar">
+                    <div>
+                        <div class="eyebrow">APPLICATION MANAGEMENT</div>
+                        <h2>我的报名</h2>
+                    </div>
+                    <button class="btn btn-primary" onclick="openApplyList()">报名新考试</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>考试计划</th><th>工种/等级</th><th>状态</th><th>提交时间</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="regs"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="material" class="panel" style="margin-top:18px">
+                <div class="toolbar">
+                    <div>
+                        <div class="eyebrow">REGISTRATION MATERIALS</div>
+                        <h2>报名材料</h2>
+                    </div>
+                </div>
+                <div id="material-content"></div>
+            </section>
+
+            <section id="ticket" class="panel" style="margin-top:18px">
+                <div class="eyebrow">ADMISSION TICKET</div>
+                <h2>准考证打印</h2>
+                <div id="ticket-content" class="notice">只有完成缴费并完成考场编排后，才能打印准考证。</div>
+            </section>
+
+            <section id="signin" class="panel" style="margin-top:18px">
+                <div class="eyebrow">EXAM SIGN-IN</div>
+                <h2>考试签到</h2>
+                <div id="signin-content"></div>
+            </section>
+
+            <section id="scores" class="panel" style="margin-top:18px">
+                <div class="eyebrow">SCORE QUERY</div>
+                <h2>成绩查询</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>考试计划</th><th>工种/等级</th><th>理论成绩</th><th>实操成绩</th><th>综合成绩</th><th>结果</th></tr>
+                        </thead>
+                        <tbody id="scores-list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="certificate" class="panel" style="margin-top:18px">
+                <div class="eyebrow">CERTIFICATE</div>
+                <h2>我的证书</h2>
+                <div id="cert-list"></div>
+            </section>
+
+            <section id="after-sales" class="panel" style="margin-top:18px">
+                <div class="toolbar">
+                    <div>
+                        <div class="eyebrow">AFTER-SALES SERVICE</div>
+                        <h2>售后服务</h2>
+                        <div class="meta">缴费后如遇问题（咨询/退款/投诉），可在此提交工单，客服将尽快回复。</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openTicketSubmit()">提交售后工单</button>
+                </div>
+                <div id="after-sales-list"></div>
+            </section>
+
+            <section id="messages" class="panel" style="margin-top:18px">
+                <div class="eyebrow">MESSAGE CENTER</div>
+                <h2>我的消息</h2>
+                <div id="messages-list"></div>
+            </section>
+
+            <section id="profile" class="panel" style="margin-top:18px">
+                <div class="eyebrow">PERSONAL PROFILE</div>
+                <h2>个人信息</h2>
+                <div id="profile-content"></div>
+                <div class="notice" style="margin-top:14px">身份证号等实名认证信息涉及考试资格，不支持直接在线修改。如需变更，请联系报名机构。</div>
+
+                <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
+                    <h3 style="margin-bottom:12px">修改密码</h3>
+                    <form class="form" id="pwd-form" style="max-width:400px">
+                        <label>原密码
+                            <input name="oldPassword" type="password" required placeholder="请输入原密码">
+                        </label>
+                        <label>新密码
+                            <input name="newPassword" type="password" required minlength="8" placeholder="至少8位，含字母和数字">
+                        </label>
+                        <label>确认新密码
+                            <input name="confirmPassword" type="password" required minlength="8" placeholder="再次输入新密码">
+                        </label>
+                        <button class="btn btn-primary" type="submit">确认修改</button>
+                    </form>
+                </div>
+            </section>
+        </section>
+    </div>
+</main>
+
+<script src="/assets/js/common/api.js?v=11"></script>
+<script>
+// 注册后首次进入：一次性提示保存账号恢复令牌
+(function () {
+    const token = sessionStorage.getItem('exam-recovery-token');
+    if (!token) return;
+    sessionStorage.removeItem('exam-recovery-token');
+    const banner = document.getElementById('recovery-banner');
+    document.getElementById('recovery-token-code').textContent = token;
+    banner.hidden = false;
+    const close = () => { banner.style.transition = 'opacity .3s ease'; banner.style.opacity = '0'; setTimeout(() => banner.remove(), 300); };
+    document.getElementById('recovery-close-btn').addEventListener('click', close);
+    document.getElementById('recovery-copy-btn').addEventListener('click', function () {
+        navigator.clipboard.writeText(token).then(() => {
+            this.textContent = '已复制 ✓';
+            setTimeout(close, 900);
+        });
+    });
+})();
+</script>
+<script>
+const u = getUser();
+if (!u) location.href = '/auth/login.html';
+const el = id => document.getElementById(id);
+let allPlans = [];
+
+async function load() {
+    try {
+        const [me, regs, scores, messages, plans, certs, signins, tickets] = await Promise.all([
+            API.me(), API.myRegistrations(), API.myScores(), API.messages(), API.plans(),
+            API.myCertificates().catch(()=>[]), API.mySignins().catch(()=>[]),
+            API.myAfterSalesTickets().catch(()=>[])
+        ]);
+        allPlans = plans;
+        el('welcome').textContent = '你好，' + (me.name || '考生');
+        const unreadCount = messages.filter(m => !m.is_read).length;
+        el('unread').textContent = unreadCount;
+        el('reg-count').textContent = regs.length;
+        el('todo').textContent = regs.filter(r => r.status !== 5 && r.status !== 6).length;
+        el('message-count').textContent = unreadCount;
+        // 侧边导航"我的消息"未读徽章（is_read 为消息接口真实字段）
+        const navBadge = el('nav-unread');
+        if (navBadge) {
+            if (unreadCount > 0) { navBadge.hidden = false; navBadge.textContent = unreadCount > 99 ? '99+' : String(unreadCount); }
+            else { navBadge.hidden = true; }
+        }
+        // 智能"下一步"待办卡 + 报名进度环形图
+        renderTodoCta(regs, scores, certs);
+
+        // 推荐考试（未报名的计划）
+        const registeredPlanIds = new Set(regs.map(r => r.planId));
+        const recommended = allPlans.filter(p => !registeredPlanIds.has(p.id)).slice(0, 3);
+        el('recommend-list').innerHTML = recommended.length ? recommended.map(p => `
+            <div class="card" style="display:flex;flex-direction:column">
+                <div class="label">报名计划 #${String(p.id).padStart(3,'0')}</div>
+                <h3 style="margin:8px 0;font-size:15px">${escHtml(p.planName)} <span class="tag">${escHtml(p.levelName)}</span></h3>
+                <div class="meta" style="flex:1">
+                    ${escHtml(p.tradeName)}<br>
+                    报名截止：${p.registerEndTime?.substring(0,10)}<br>
+                    费用：¥${p.fee}
+                </div>
+                <button class="btn btn-primary" style="margin-top:10px" onclick="openApply(${p.id})">立即报名</button>
+            </div>
+        `).join('') : '<div class="notice">暂无推荐考试</div>';
+
+        el('regs').innerHTML = regs.length ? regs.map(r => {
+            window._regMap = window._regMap || {};
+            window._regMap[r.id] = r;
+            const actions = [];
+            actions.push(`<button class="btn btn-sm" onclick="showTimeline(${r.id})">审核进度</button>`);
+            if (r.status === 1) actions.push(`<button class="btn btn-sm" onclick="cancelReg(${r.id})">取消报名</button>`);
+            if (r.status === 2) {
+                actions.push(`<button class="btn btn-primary btn-sm" onclick="pay(${r.id},'wechat')">微信支付 ¥${r.fee ?? ''}</button>`);
+                actions.push(`<button class="btn btn-sm" onclick="pay(${r.id},'alipay')">支付宝</button>`);
+                actions.push(`<button class="btn btn-sm" onclick="cancelReg(${r.id})">取消报名</button>`);
+            }
+            if (r.status === 3) {
+                actions.push(`<button class="btn btn-primary btn-sm" onclick="resubmit(${r.id}, ${r.planId})">重新提交</button>`);
+                actions.push(`<button class="btn btn-sm" onclick="cancelReg(${r.id})">取消报名</button>`);
+            }
+            if (r.status === 5) actions.push(`<button class="btn btn-sm" onclick="printTicket(${r.id})">打印准考证</button>`);
+            const rejectTip = r.status === 3 && r.rejectReason
+                ? `<div style="margin-top:6px;color:var(--danger,#e11);font-size:12px">退回原因：${escHtml(r.rejectReason)}</div>` : '';
+            return `<tr>
+                <td>${escHtml(r.planName)}</td>
+                <td>${escHtml(r.tradeName)} / ${escHtml(r.levelName)}</td>
+                <td class="status status-${r.status}">${r.statusName || statusText(r.status)}${rejectTip}</td>
+                <td>${r.submittedAt ? r.submittedAt.substring(0,16) : '-'}</td>
+                <td>${actions.join(' ') || '<span class="meta">暂无操作</span>'}</td>
+            </tr>`;
+        }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">暂无报名记录</td></tr>';
+
+        const confirmed = regs.find(r => r.status === 5);
+        el('ticket-content').innerHTML = confirmed
+            ? `<div class="notice"><b>准考证已生成</b><br>计划：${escHtml(confirmed.planName)}<br>准考证号：${escHtml(confirmed.ticketNo)}　考场：${escHtml(confirmed.roomCode)}　座位：${confirmed.seatNo}<br><button class="btn btn-primary" style="margin-top:10px" onclick="printTicket(${confirmed.id})">打印准考证</button></div>`
+            : '只有完成缴费并完成考场编排后，才能打印准考证。';
+
+        el('scores-list').innerHTML = scores.length ? scores.map(s => `<tr>
+            <td>${escHtml(s.planName)}</td><td>${escHtml(s.tradeName)} / ${escHtml(s.levelName)}</td>
+            <td>${s.theoryScore ?? '-'}</td><td>${s.practiceScore ?? '-'}</td>
+            <td>${s.comprehensiveScore ?? '-'}</td>
+            <td><span class="tag ${s.result === 1 ? 'tag-success' : 'tag-danger'}">${s.result === 1 ? '合格' : '不合格'}</span></td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">暂无成绩记录</td></tr>';
+
+        el('messages-list').innerHTML = messages.length ? `
+            <div style="text-align:right;margin-bottom:8px">
+                <button class="btn btn-sm" onclick="readAll()">全部标为已读</button>
+            </div>` + messages.map(m =>
+            `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);${m.is_read ? '' : 'background:var(--primary-light,#f2f5ff);padding-left:10px;padding-right:10px;border-radius:8px'}">
+                <div style="flex:1"><b>${escHtml(m.title)}${!m.is_read ? ' <span style="width:8px;height:8px;background:var(--danger,#e11);border-radius:50%;display:inline-block"></span>' : ''}</b><br><span class="meta">${escHtml(m.content || '')}</span><br><small class="meta">${m.created_at?.substring(0,16).replace('T',' ') || ''}</small></div>
+                ${m.is_read ? '' : `<button class="btn btn-sm" onclick="readMsg(${m.id})">标为已读</button>`}
+            </div>`
+        ).join('') : '<div class="notice">暂无消息</div>';
+
+        // 报名材料
+        if (regs.length) {
+            el('material-content').innerHTML = regs.map(r => {
+                const hasMaterials = r.status !== 0;
+                return `<div style="padding:12px 0;border-bottom:1px solid var(--line)">
+                    <b>${escHtml(r.planName)}</b>
+                    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-sm" onclick="uploadMaterial(${r.id})">上传材料</button>
+                        <button class="btn btn-sm" onclick="viewMaterials(${r.id})">查看材料</button>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            el('material-content').innerHTML = '<div class="notice">暂无报名记录，无法上传材料</div>';
+        }
+
+        // 考试签到（接口已按当前考生过滤，优先展示未签到的那场）
+        const myArrangement = signins.find(s => s.user_id === me.id && s.status === 0)
+            || signins.find(s => s.user_id === me.id)
+            || null;
+        el('signin-content').innerHTML = myArrangement
+            ? `<div class="notice"><b>签到信息</b><br>考试：${escHtml(myArrangement.plan_name)}<br>考场：${escHtml(myArrangement.room_code)} (${escHtml(myArrangement.building)} ${escHtml(myArrangement.classroom)})　座位：${myArrangement.seat_no}<br>准考证号：${escHtml(myArrangement.ticket_no)}<br>签到状态：<span class="tag tag-${myArrangement.status === 1 ? 'success' : 'warning'}">${myArrangement.status === 1 ? '已签到' : myArrangement.status === 2 ? '缺考' : '未签到'}</span><br><button class="btn btn-primary" style="margin-top:10px" onclick="doSignin(${myArrangement.arrangement_id})" ${myArrangement.status !== 0 ? 'disabled' : ''}>${myArrangement.status === 1 ? '已签到' : '扫码签到'}</button></div>`
+            : '<div class="notice">暂无考试安排，请等待考场编排完成</div>';
+
+        // 证书
+        window._certMap = {};
+        el('cert-list').innerHTML = certs.length ? certs.map(c => {
+            window._certMap[c.id] = c;
+            const revoked = c.status === 2;
+            return `<div style="padding:16px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;background:linear-gradient(135deg,#f8f9ff,#fff)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+                    <div>
+                        <div class="label">职业技能等级证书</div>
+                        <h3 style="margin:6px 0">${escHtml(c.trade_name)} - ${escHtml(c.level_name)}</h3>
+                        <div class="meta">证书编号：${escHtml(c.certificate_no)}</div>
+                        <div class="meta">认定计划：${escHtml(c.plan_name || '-')}</div>
+                        <div class="meta">发证日期：${(c.issued_at || '').substring(0,10)}　发证机构：${escHtml(c.issuer || '-')}</div>
+                    </div>
+                    <div style="text-align:right">
+                        <span class="tag ${revoked ? '' : 'tag-success'}">${revoked ? '已作废' : '已发放'}</span>
+                        <div style="margin-top:10px">${revoked ? '' : `<button class="btn btn-primary btn-sm" onclick="printCertificateById(${c.id})">查看/打印</button>`}</div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('') : '<div class="notice">暂无证书记录，成绩合格后将自动生成证书</div>';
+
+        // 售后工单列表
+        const ticketStatus = { 0: '待处理', 1: '处理中', 2: '已解决', 3: '已关闭' };
+        const ticketType = { refund: '退款', consult: '咨询', complaint: '投诉', other: '其他' };
+        el('after-sales-list').innerHTML = tickets.length ? tickets.map(t => {
+            const sc = t.status === 0 ? 'tag-warning' : t.status === 1 ? 'tag-primary' : t.status === 2 ? 'tag-success' : 'tag-muted';
+            return `<div style="padding:14px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                    <div style="flex:1;min-width:200px">
+                        <h3 style="margin:0 0 4px;font-size:15px">${escHtml(t.title)} <span class="tag">${escHtml(ticketType[t.type] || t.type || '其他')}</span></h3>
+                        <div class="meta" style="margin-bottom:6px">${escHtml((t.content || '').substring(0,60))}${t.content && t.content.length > 60 ? '...' : ''}</div>
+                        ${t.reply ? `<div style="padding:8px 10px;background:#ecfdf5;border-radius:6px;font-size:13px;border-left:3px solid #10b981"><b>回复：</b>${escHtml(t.reply)}</div>` : ''}
+                        <div class="meta" style="margin-top:6px">提交时间：${(t.created_at || '').substring(0,16).replace('T',' ')}</div>
+                    </div>
+                    <span class="tag ${sc}">${ticketStatus[t.status] || t.status}</span>
+                </div>
+            </div>`;
+        }).join('') : '<div class="notice">暂无售后工单，有问题请点击右上角提交</div>';
+
+        el('profile-content').innerHTML = `
+            ${me.systemEmail ? `
+            <div class="callout callout-amber" style="margin-bottom:16px">
+                <div class="callout-head"><span class="callout-icon">📮</span><h3>系统公共邮箱</h3></div>
+                <p>当前账号绑定的 <b>3390709428@qq.com</b> 是平台的<strong>系统公共邮箱</strong>，也是平台统一的发信邮箱，允许被多个账号共同使用。注册验证码与系统通知都会发送到该邮箱，由平台统一接收，<strong>不代表您的私人联系方式</strong>。如需找回本账号密码，建议使用注册时获得的 16 位恢复令牌，或联系管理员处理。</p>
+            </div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                <div class="notice"><span class="label">姓名</span><br><b>${escHtml(me.name)}</b></div>
+                <div class="notice"><span class="label">登录账号</span><br><b>${escHtml(me.username)}</b></div>
+                <div class="notice"><span class="label">手机号</span><br><b>${escHtml(me.phone)}</b></div>
+                <div class="notice"><span class="label">邮箱</span><br><b>${escHtml(me.email || '-')}</b>${me.systemEmail ? ' <span class="tag tag-warning" title="平台系统公共邮箱，可被多个账号共同使用">📮 系统公共邮箱</span>' : ''}</div>
+                <div class="notice"><span class="label">身份证号</span><br><b>${escHtml(me.idCard)}</b></div>
+                <div class="notice"><span class="label">工作单位</span><br><b>${escHtml(me.workUnit || '-')}</b></div>
+                <div class="notice"><span class="label">年龄</span><br><b>${me.age || '-'}</b></div>
+                <div class="notice"><span class="label">职业</span><br><b>${escHtml(me.occupation || '-')}</b></div>
+                <div class="notice"><span class="label">收入范围</span><br><b>${escHtml(me.incomeRange || '-')}</b></div>
+                <div class="notice"><span class="label">所在地区</span><br><b>${escHtml(me.region || '-')}</b></div>
+            </div>
+            <button class="btn btn-primary" onclick="openProfileEdit()">编辑个人资料</button>`;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+function statusText(s) {
+    return ['待提交','待审核','审核通过','审核退回','已缴费','已确认','已取消'][s] || '未知';
+}
+
+/* ===== 智能"下一步"待办卡 + 7 步环形进度 ===== */
+const FLOW_STEP_TOTAL = 7; // 选计划 / 提交 / 审核 / 缴费 / 编排 / 考试 / 证书
+
+// 取最新一条进行中的报名（已取消的不算）
+function activeRegistration(regs) {
+    const active = (regs || []).filter(r => r.status !== 6);
+    if (!active.length) return null;
+    return active.slice().sort((a, b) =>
+        String(b.submittedAt || b.createdAt || '').localeCompare(String(a.submittedAt || a.createdAt || '')))[0];
+}
+
+// 按报名状态映射当前所处步骤（1-7）；done 表示 7 步全部完成
+function flowStepOf(r, scores, certs) {
+    if (!r) return { step: 1, done: false };
+    switch (r.status) {
+        case 0: return { step: 2, done: false };
+        case 1: return { step: 3, done: false };
+        case 2: return { step: 4, done: false };
+        case 3: return { step: 3, done: false };
+        case 4: return { step: 5, done: false };
+        case 5: {
+            const hasScore = (scores || []).some(s =>
+                s.planId != null ? s.planId === r.planId : String(s.planName || '') === String(r.planName || ''));
+            const hasCert = (certs || []).some(c => String(c.plan_name || '') === String(r.planName || ''));
+            if (hasCert) return { step: FLOW_STEP_TOTAL, done: true };
+            return { step: hasScore ? FLOW_STEP_TOTAL : 6, done: false };
+        }
+        default: return { step: 1, done: false };
+    }
+}
+
+function renderTodoCta(regs, scores, certs) {
+    const card = el('todo-card');
+    if (!card) return;
+    const r = activeRegistration(regs);
+    const { step, done } = flowStepOf(r, scores, certs);
+    let title = '', desc = '', actions = '';
+    if (!r) {
+        title = '还没有进行中的报名';
+        desc = '先挑选一门合适的考试计划，几分钟就能完成报名～';
+        actions = '<a class="btn btn-primary" href="/">浏览考试计划开始报名</a>';
+    } else if (r.status === 1 || r.status === 0) {
+        title = '资料已提交，坐等审核就好';
+        desc = '《' + escHtml(r.planName) + '》预计 1-3 个工作日完成审核，结果将通过消息通知您';
+        actions = '<a class="btn" href="#application">查看我的报名</a>';
+    } else if (r.status === 2) {
+        title = '审核通过啦，就差缴费这一步';
+        desc = '《' + escHtml(r.planName) + '》完成缴费后即可等待考场编排';
+        actions = '<button class="btn btn-primary" onclick="pay(' + r.id + ',\'wechat\')">去缴费 ¥' + (r.fee ?? '') + '</button>' +
+            '<a class="btn" href="#application">查看报名详情</a>';
+    } else if (r.status === 3) {
+        title = '报名被退回了，别着急';
+        desc = '退回原因：' + escHtml(r.rejectReason || '未说明') + '。查看原因后可重新提交';
+        actions = '<button class="btn btn-primary" onclick="resubmit(' + r.id + ', ' + r.planId + ')">查看退回原因并重新提交</button>';
+    } else if (r.status === 4) {
+        title = '缴费成功，等待考场编排';
+        desc = '《' + escHtml(r.planName) + '》考务编排考场后即可查看准考证，请留意消息通知';
+        actions = '<a class="btn" href="#ticket">了解准考证打印</a>';
+    } else if (r.status === 5) {
+        const hasCert = (certs || []).some(c => String(c.plan_name || '') === String(r.planName || ''));
+        title = hasCert ? '恭喜！证书已发放' : '一切就绪，按时参加考试';
+        desc = '《' + escHtml(r.planName) + '》' + (hasCert ? '证书已生成，可在"我的证书"中查看并打印' : '准考证已生成，记得提前打印并按时赴考');
+        actions = hasCert
+            ? '<a class="btn btn-primary" href="#certificate">查看我的证书</a>'
+            : '<button class="btn btn-primary" onclick="printTicket(' + r.id + ')">查看准考证</button>';
+    } else {
+        title = '还没有进行中的报名';
+        desc = '先挑选一门合适的考试计划，几分钟就能完成报名～';
+        actions = '<a class="btn btn-primary" href="/">浏览考试计划开始报名</a>';
+    }
+    el('todo-title').textContent = title;
+    el('todo-desc').innerHTML = desc; // desc 中动态文本已 escHtml 转义，需按 HTML 渲染
+    el('todo-actions').innerHTML = actions;
+    const pct = done ? 100 : Math.round(((step - 1) / FLOW_STEP_TOTAL) * 100);
+    el('todo-ring').style.setProperty('--ring-pct', pct);
+    el('todo-ring-label').textContent = '第 ' + Math.min(step, FLOW_STEP_TOTAL) + '/' + FLOW_STEP_TOTAL + ' 步';
+    card.hidden = false;
+}
+
+async function pay(id, method) {
+    const methodName = method === 'alipay' ? '支付宝' : '微信';
+    if (!confirm('确认使用' + methodName + '支付考试费用？')) return;
+    try { await API.pay(id, method); toast(methodName + '支付成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function cancelReg(id) {
+    if (!confirm('确定取消该报名吗？取消后名额将被释放，可在首页重新报名。')) return;
+    try { await API.cancelRegistration(id); toast('报名已取消', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function resubmit(id, planId) {
+    if (!confirm('按原报名信息重新提交审核？')) return;
+    try {
+        const old = (await API.myRegistrations()).find(r => r.id === id);
+        await API.apply({
+            planId,
+            workYears: old?.workYears ?? 0,
+            education: old?.education ?? '',
+            emergencyContact: old?.emergencyContact ?? '',
+            emergencyPhone: old?.emergencyPhone ?? ''
+        });
+        toast('已重新提交报名', 'success'); load();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function openApplyList() {
+    try {
+        const plans = await API.plans();
+        const list = plans.map(p => `
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--line)">
+                <div style="flex:1">
+                    <b>${escHtml(p.planName)}</b> <span class="tag">${escHtml(p.levelName)}</span><br>
+                    <span class="meta">报名截止 ${p.registerEndTime?.substring(0,10)} · 费用 ¥${p.fee}</span>
+                </div>
+                <button class="btn btn-primary" onclick="openApply(${p.id})">选择</button>
+            </div>`).join('');
+        const modal = getModal();
+        modal.hidden = false;
+        modal.innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px">
+            <div class="eyebrow">SELECT PLAN</div>
+            <h2>选择考试计划</h2>
+            ${list}
+            <button class="btn" style="width:100%;margin-top:16px" onclick="document.getElementById('modal').hidden=true">关闭</button>
+        </div></div>`;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+function openApply(planId) {
+    const p = allPlans.find(x => x.id === planId);
+    const planInfo = p ? `
+        <div style="margin:6px 0 20px;padding:14px 16px;background:var(--surface-soft);border-radius:12px;line-height:1.8">
+            <b>${escHtml(p.planName)}</b>　<span class="tag">${escHtml(p.levelName)}</span><br>
+            认定工种：${escHtml(p.tradeName)}　|　报名截止：${p.registerEndTime?.substring(0,10)}　|　费用：¥${p.fee}
+        </div>` : '';
+    const modal = getModal();
+    modal.hidden = false;
+    modal.innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px">
+        <div class="eyebrow">ONLINE APPLICATION</div>
+        <h2>报名申请</h2>
+        ${planInfo}
+        <form class="form" onsubmit="submitApply(event, ${planId})">
+            <div class="form-group">
+                <label class="form-label">从事本职业年限（年）</label>
+                <input type="number" id="ap-years" min="0" max="60" value="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">最高学历</label>
+                <select id="ap-edu" required>
+                    <option value="">请选择</option>
+                    <option>初中</option><option>高中</option><option>中专/中技</option>
+                    <option>大专</option><option>本科</option><option>硕士及以上</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">紧急联系人</label>
+                <input type="text" id="ap-contact" placeholder="请输入紧急联系人姓名" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">紧急联系电话</label>
+                <input type="tel" id="ap-phone" placeholder="请输入11位手机号" required maxlength="11">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">确认提交报名</button>
+                <button type="button" class="btn" onclick="document.getElementById('modal').hidden=true">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+}
+
+async function submitApply(e, planId) {
+    e.preventDefault();
+    try {
+        await API.apply({
+            planId,
+            workYears: Number(document.getElementById('ap-years').value),
+            education: document.getElementById('ap-edu').value,
+            emergencyContact: document.getElementById('ap-contact').value,
+            emergencyPhone: document.getElementById('ap-phone').value
+        });
+        document.getElementById('modal').hidden = true;
+        toast('报名提交成功，等待审核', 'success');
+        load();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+function getModal() {
+    let m = document.getElementById('modal');
+    if (!m) { m = document.createElement('div'); m.id = 'modal'; document.body.appendChild(m); }
+    return m;
+}
+
+async function showTimeline(id) {
+    try {
+        const records = await API.timeline(id);
+        const planName = (window._regMap && window._regMap[id] && window._regMap[id].planName) || '';
+        const levelText = { 1: '初审', 2: '复审' };
+        const resultText = { 1: '通过', 2: '退回' };
+        const body = records.length ? records.map(a => `
+            <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)">
+                <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${levelText[a.audit_level] || '审核'}</div>
+                <div style="flex:1">
+                    <b>${resultText[a.audit_result] || '已处理'}</b>
+                    <span class="meta">　审核人：${escHtml(a.auditor_name || '-')}　${(a.created_at || '').substring(0,16).replace('T',' ')}</span>
+                    ${a.reason ? `<div class="meta" style="margin-top:4px">意见：${escHtml(a.reason)}</div>` : ''}
+                </div>
+            </div>`).join('') : '<div class="notice">暂无审核记录，请耐心等待管理员审核</div>';
+        const modal = document.getElementById('modal') || (() => { const d = document.createElement('div'); d.id = 'modal'; document.body.appendChild(d); return d; })();
+        modal.hidden = false;
+        modal.innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px">
+            <div class="eyebrow">AUDIT PROGRESS</div>
+            <h2>审核进度</h2>
+            <div class="meta" style="margin:4px 0 12px">${escHtml(planName)}</div>
+            ${body}
+            <button class="btn" style="width:100%;margin-top:16px" onclick="document.getElementById('modal').hidden=true">关闭</button>
+        </div></div>`;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function readMsg(id) {
+    try { await API.readMessage(id); load(); } catch (e) { toast(e.message, 'error'); }
+}
+
+async function readAll() {
+    try { await API.readAllMessages(); toast('已全部标为已读', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+}
+
+function printCertificateById(id) {
+    const c = (window._certMap || {})[id];
+    if (!c) { toast('证书信息已更新，请刷新页面', 'error'); return; }
+    printCertificate(c);
+}
+
+function printCertificate(c) {
+    const w = window.open('', '_blank');
+    w.document.write(`
+        <html><head><title>电子证书 - ${escHtml(c.certificate_no)}</title>
+        <style>
+            body{font-family:"Microsoft YaHei",sans-serif;background:#f0f2f5;margin:0;padding:30px}
+            .cert{max-width:820px;margin:0 auto;background:linear-gradient(135deg,#fffdf5,#ffffff);border:10px double #b8860b;border-radius:14px;padding:50px 60px;position:relative}
+            h1{text-align:center;color:#8b6914;letter-spacing:6px;margin:0 0 6px}
+            .sub{text-align:center;color:#999;letter-spacing:3px;margin-bottom:34px}
+            .name{text-align:center;font-size:34px;font-weight:700;color:#222;margin:24px 0}
+            .line{font-size:17px;line-height:2.1;color:#333}
+            .line b{display:inline-block;width:120px;color:#8b6914}
+            .seal{position:absolute;right:70px;bottom:70px;width:120px;height:120px;border:3px solid rgba(200,30,30,.55);border-radius:50%;color:rgba(200,30,30,.7);display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;transform:rotate(-12deg);font-weight:700}
+            .no{text-align:center;margin-top:36px;color:#888;font-size:13px}
+        </style></head>
+        <body><div class="cert">
+            <h1>职业技能等级证书</h1>
+            <div class="sub">VOCATIONAL SKILL LEVEL CERTIFICATE</div>
+            <div class="name">${escHtml(c.real_name || '')}</div>
+            <div class="line"><b>认定工种：</b>${escHtml(c.trade_name)}</div>
+            <div class="line"><b>技能等级：</b>${escHtml(c.level_name)}</div>
+            <div class="line"><b>认定计划：</b>${escHtml(c.plan_name || '')}</div>
+            <div class="line"><b>发证日期：</b>${(c.issued_at || '').substring(0,10)}</div>
+            <div class="line"><b>发证机构：</b>${escHtml(c.issuer || '')}</div>
+            <div class="seal">技能等级<br>认定专用章</div>
+            <div class="no">证书编号：${escHtml(c.certificate_no)}　|　可凭编号在报名平台公开查验</div>
+        </div>
+        <script>window.onload=()=>window.print()<\/script>
+        </body></html>`);
+}
+
+async function uploadMaterial(regId) {
+    const fileName = prompt('请输入材料文件名（如：身份证扫描件.jpg）：');
+    if (!fileName) return;
+    try {
+        await API.addMaterial(regId, { fileName, filePath: '/uploads/' + fileName, fileSize: 1024000, fileType: fileName.split('.').pop() });
+        toast('材料上传成功', 'success');
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function viewMaterials(regId) {
+    try {
+        const materials = await API.getMaterials(regId);
+        alert(materials.length ? materials.map(m => `📄 ${m.file_name} (${(m.file_size/1024).toFixed(1)}KB)`).join('\n') : '暂无上传材料');
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function doSignin(arrId) {
+    try { await API.mySignin(arrId); toast('签到成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function printTicket(id) {
+    try {
+        const t = await API.ticket(id);
+        const w = window.open('', '_blank');
+        w.document.write(`
+            <html><head><title>准考证</title>
+            <style>body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:30px;border:2px solid #333;border-radius:10px}
+            h1{text-align:center;color:#4f6ef7}hr{margin:20px 0}
+            .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+            .label{color:#666}.val{font-weight:600}</style></head>
+            <body><h1>职业技能等级认定准考证</h1><hr>
+            <div class="row"><span class="label">考生姓名</span><span class="val">${escHtml(t.candidate)}</span></div>
+            <div class="row"><span class="label">准考证号</span><span class="val">${escHtml(t.ticketNo)}</span></div>
+            <div class="row"><span class="label">身份证号</span><span class="val">${escHtml(t.idCard)}</span></div>
+            <div class="row"><span class="label">考试计划</span><span class="val">${escHtml(t.plan)}</span></div>
+            <div class="row"><span class="label">工种等级</span><span class="val">${escHtml(t.trade)} / ${escHtml(t.level)}</span></div>
+            <div class="row"><span class="label">考场</span><span class="val">${escHtml(t.room)}</span></div>
+            <div class="row"><span class="label">座位号</span><span class="val">${t.seat}</span></div>
+            <div class="row"><span class="label">考试时间</span><span class="val">${escHtml(t.examTime || '-')}${t.examEndTime ? ' 至 ' + escHtml(t.examEndTime) : ''}</span></div>
+            <div class="row"><span class="label">考试地点</span><span class="val">${escHtml(t.examLocation || '以考场安排为准')}</span></div>
+            <hr><p style="color:#666;font-size:13px">请携带有效身份证件参加考试，提前30分钟到达考场。</p>
+            <script>window.onload=()=>window.print()<\/script>
+            </body></html>`);
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+
+async function openTicketSubmit() {
+    const me = await API.me();
+    const modal = getModal();
+    modal.hidden = false;
+    modal.innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:520px;max-height:85vh;overflow-y:auto">
+        <div class="eyebrow">AFTER-SALES TICKET</div>
+        <h2>提交售后工单</h2>
+        <p class="meta" style="margin:6px 0 16px">请详细描述您的问题，我们会尽快处理并回复。</p>
+        <form class="form" id="ticket-form" onsubmit="submitTicket(event)">
+            <div class="form-group">
+                <label class="form-label">工单标题 *</label>
+                <input id="tk-title" required placeholder="如：申请退款、咨询考试安排等">
+            </div>
+            <div class="form-group">
+                <label class="form-label">问题类型</label>
+                <select id="tk-type">
+                    <option value="consult">咨询</option>
+                    <option value="refund">退款</option>
+                    <option value="complaint">投诉</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">关联报名（可选）</label>
+                <select id="tk-reg">
+                    <option value="">不关联</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">问题描述 *</label>
+                <textarea id="tk-content" rows="5" required placeholder="请详细描述您遇到的问题..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">提交工单</button>
+                <button type="button" class="btn" onclick="document.getElementById('modal').hidden=true">取消</button>
+            </div>
+        </form>
+    </div></div>`;
+    // 填充报名选项
+    const regs = await API.myRegistrations().catch(() => []);
+    const regSelect = el('tk-reg');
+    regs.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.planName + '（' + (r.statusName || statusText(r.status)) + '）';
+        regSelect.appendChild(opt);
+    });
+}
+
+async function submitTicket(e) {
+    e.preventDefault();
+    try {
+        await API.createAfterSalesTicket({
+            title: el('tk-title').value.trim(),
+            type: el('tk-type').value,
+            registrationId: el('tk-reg').value || null,
+            content: el('tk-content').value.trim()
+        });
+        toast('工单已提交，我们会尽快处理', 'success');
+        document.getElementById('modal').hidden = true;
+        load();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+async function openProfileEdit() {
+    try {
+        const me = await API.me();
+        const modal = getModal();
+        modal.hidden = false;
+        modal.innerHTML = `<div class="modal"><div class="panel" style="margin:20px;max-width:560px;max-height:85vh;overflow-y:auto">
+            <div class="eyebrow">EDIT PROFILE</div>
+            <h2>编辑个人资料</h2>
+            <form class="form" id="profile-edit-form" onsubmit="submitProfileEdit(event)">
+                <div class="form-group">
+                    <label class="form-label">真实姓名</label>
+                    <input id="pe-name" value="${escHtml(me.name || '')}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">手机号</label>
+                    <input id="pe-phone" value="${me.phone || ''}" required maxlength="11">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">电子邮箱</label>
+                    <input id="pe-email" type="email" value="${escHtml(me.email || '')}">
+                    <div class="meta" style="font-size:12px;margin-top:6px">📮 3390709428@qq.com 为平台系统公共邮箱，允许多个账号共同使用；其他邮箱仅限本人账号绑定。</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">工作单位</label>
+                    <input id="pe-work" value="${escHtml(me.workUnit || '')}">
+                </div>
+                <div style="padding-top:14px;border-top:1px solid var(--line);margin-top:8px">
+                    <div class="eyebrow" style="margin-bottom:10px">扩展资料</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group">
+                        <label class="form-label">年龄</label>
+                        <input id="pe-age" type="number" min="0" max="150" value="${me.age || ''}" placeholder="请输入年龄">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">职业</label>
+                        <input id="pe-occupation" value="${escHtml(me.occupation || '')}" placeholder="如：软件工程师">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">收入范围</label>
+                    <select id="pe-income">
+                        <option value="">请选择</option>
+                        <option ${me.incomeRange === '5万以下' ? 'selected' : ''}>5万以下</option>
+                        <option ${me.incomeRange === '5-10万' ? 'selected' : ''}>5-10万</option>
+                        <option ${me.incomeRange === '10-20万' ? 'selected' : ''}>10-20万</option>
+                        <option ${me.incomeRange === '20-30万' ? 'selected' : ''}>20-30万</option>
+                        <option ${me.incomeRange === '30-50万' ? 'selected' : ''}>30-50万</option>
+                        <option ${me.incomeRange === '50万以上' ? 'selected' : ''}>50万以上</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">所在地区</label>
+                    <input id="pe-region" value="${escHtml(me.region || '')}" placeholder="如：北京市朝阳区">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                    <button type="button" class="btn" onclick="document.getElementById('modal').hidden=true">取消</button>
+                </div>
+            </form>
+        </div></div>`;
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function submitProfileEdit(e) {
+    e.preventDefault();
+    try {
+        await API.updateProfile({
+            realName: el('pe-name').value.trim(),
+            phone: el('pe-phone').value.trim(),
+            email: el('pe-email').value.trim(),
+            workUnit: el('pe-work').value.trim(),
+            age: el('pe-age').value,
+            occupation: el('pe-occupation').value.trim(),
+            incomeRange: el('pe-income').value,
+            region: el('pe-region').value.trim()
+        });
+        toast('个人资料已更新', 'success');
+        document.getElementById('modal').hidden = true;
+        load();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+// 修改密码
+document.getElementById('pwd-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    if (f.get('newPassword') !== f.get('confirmPassword')) {
+        toast('两次输入的新密码不一致', 'error');
+        return;
+    }
+    try {
+        await API.changePassword({ oldPassword: f.get('oldPassword'), newPassword: f.get('newPassword') });
+        toast('密码修改成功', 'success');
+        e.target.reset();
+    } catch (err) { toast(err.message, 'error'); }
+});
+
+load();
+
+/* ===== 滚动进度条 + 回到顶部 ===== */
+(function(){
+  const bar = document.getElementById('scroll-progress');
+  const btn = document.getElementById('back-to-top');
+  function onScroll() {
+    const st = window.scrollY || document.documentElement.scrollTop;
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = h > 0 ? (st / h) * 100 : 0;
+    if (bar) bar.style.width = pct + '%';
+    if (btn) btn.classList.toggle('visible', st > 400);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  if (btn) btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+</body>
+</html>

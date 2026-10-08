@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>我的报名流程 / 职业技能等级认定</title>
+    <link rel="stylesheet" href="/assets/css/theme.css?v=8">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="/"><img src="/assets/logo.svg" alt="logo" class="brand-logo"><strong>我的报名流程</strong></a>
+    <nav>
+        <a href="/">考试计划</a>
+        <a href="/dashboard.html">个人中心</a>
+        <a href="#" onclick="logout();return false">退出</a>
+    </nav>
+</header>
+
+<main class="layout">
+    <section class="hero">
+        <div>
+            <div class="eyebrow">APPLICATION TRACKER</div>
+            <h1>我的报名流程</h1>
+            <p>每一步都有明确状态。完成当前待办后，系统会开放下一阶段操作。</p>
+        </div>
+    </section>
+    <section id="content"></section>
+</main>
+
+<script src="/assets/js/api.js?v=10"></script>
+<script>
+const u = getUser();
+if (!u) location.href = '/login.html';
+const content = document.querySelector('#content');
+const labels = ['选择计划', '提交报名', '资格审核', '缴费确认', '考场编排/准考证'];
+
+async function load() {
+    try {
+        const records = await API.myRegistrations();
+        if (!records.length) {
+            content.innerHTML = '<section class="panel"><h2>暂无报名记录</h2><p class="meta">请先从考试计划选择一项考试并提交报名。</p><a class="btn btn-primary" href="/">浏览考试计划</a></section>';
+            return;
+        }
+        content.innerHTML = records.map(r => {
+            const step = r.status === 1 ? 2 : r.status === 2 ? 3 : r.status === 4 ? 4 : r.status === 5 ? 5 : r.status === 3 ? 2 : 1;
+            return `<section class="panel" style="margin-bottom:16px">
+                <div class="eyebrow">APPLICATION #${r.id}</div>
+                <div class="toolbar">
+                    <div><h2>${escHtml(r.planName)}</h2><div class="meta">${escHtml(r.tradeName)} / ${escHtml(r.levelName)}　·　考生：${escHtml(r.realName)}</div></div>
+                    <span class="tag tag-${r.status === 5 ? 'success' : r.status === 3 ? 'danger' : 'info'}">${['待提交','待审核','审核通过','审核退回','已缴费','已确认','已取消'][r.status]}</span>
+                </div>
+                <div class="grid">
+                    ${labels.map((x, i) => `<div class="panel span-3" style="text-align:center;border-color:${i < step ? 'var(--primary)' : 'var(--line)'}">
+                        <div style="font-size:24px;font-weight:800;color:${i < step ? 'var(--primary)' : 'var(--muted)'}">0${i+1}</div>
+                        <div style="color:${i < step ? 'var(--primary)' : 'var(--muted)'};font-size:13px;margin-top:4px">${x}</div>
+                    </div>`).join('')}
+                </div>
+                ${r.rejectReason ? `<div class="notice notice-danger" style="margin-top:16px">审核意见：${escHtml(r.rejectReason)}</div>` : ''}
+                <div style="margin-top:18px">
+                    ${r.status === 2 ? `<button class="btn btn-primary" onclick="pay(${r.id})">确认缴费</button>` : ''}
+                    ${r.status === 5 ? `<button class="btn btn-primary" onclick="ticket(${r.id})">查看准考证</button>` : ''}
+                    ${r.status === 1 ? '<span class="meta">资料已提交，请等待管理员审核</span>' : ''}
+                    ${r.status === 4 ? '<span class="meta">缴费成功，等待考务人员编排考场</span>' : ''}
+                </div>
+            </section>`;
+        }).join('');
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function pay(id) {
+    try { await API.pay(id); toast('缴费确认成功', 'success'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+}
+
+async function ticket(id) {
+    try {
+        const t = await API.ticket(id);
+        alert(`准考证号：${t.ticketNo}\n考场：${t.room}\n座位：${t.seat}`);
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+load();
+</script>
+</body>
+</html>
